@@ -4,174 +4,338 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Bus">
-<meta name="theme-color" content="#0b0d12">
+<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
 <title>Bus</title>
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23dc241f'/%3E%3Ctext x='90' y='120' font-size='100' text-anchor='middle'%3E🚌%3C/text%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23e1251b'/%3E%3Ctext x='90' y='122' font-size='100' text-anchor='middle'%3E🚌%3C/text%3E%3C/svg%3E">
 <style>
-  :root { --bg:#0b0d12; --card:#161a22; --line:#262c38; --txt:#eef1f6; --dim:#8b93a3;
-          --red:#ff453a; --amber:#ffb340; --green:#32d74b; --blue:#0a84ff; }
+  :root {
+    --bg:#f2f2f7; --card:#fff; --txt:#1c1c1e; --dim:#6e6e73; --faint:#aeaeb2; --line:#e5e5ea; --fill:#f2f2f7;
+    --red:#ff3b30; --amber:#ff9500; --green:#34c759; --blue:#007aff; --brand:#e1251b;
+    --radius:18px; --shadow:0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#000; --card:#1c1c1e; --txt:#f5f5f7; --dim:#98989f; --faint:#636366; --line:#2c2c2e; --fill:#2c2c2e; --shadow:none; }
+  }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html, body { max-width:100%; }
-  body { margin:0; background:var(--bg); color:var(--txt); font:16px/1.35 -apple-system, system-ui, sans-serif;
-         padding:env(safe-area-inset-top) 14px calc(env(safe-area-inset-bottom) + 20px); }
-  header { display:flex; align-items:center; justify-content:space-between; padding:14px 2px 6px; }
-  h1 { font-size:22px; margin:0; }
-  .clock { color:var(--dim); font-variant-numeric:tabular-nums; }
-  .chips { display:flex; gap:8px; overflow-x:auto; padding:8px 0; }
-  .chip { flex:none; border:1px solid var(--line); background:var(--card); color:var(--txt); border-radius:999px;
-          padding:8px 14px; font-size:15px; }
-  .chip.on { background:var(--blue); border-color:var(--blue); }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin:10px 0; }
-  .sub { color:var(--dim); font-size:14px; }
-  .status { font-size:14px; margin-top:6px; }
-  .watch { width:100%; border:0; border-radius:14px; padding:16px; font-size:18px; font-weight:600; color:#fff;
-           background:var(--line); margin-top:4px; }
-  .watch.on { background:var(--green); color:#000; }
-  .bus { display:grid; grid-template-columns:64px minmax(0,1fr) auto; gap:4px 12px; align-items:center; }
-  .due { font-size:30px; font-weight:700; font-variant-numeric:tabular-nums; text-align:center; line-height:1; }
-  .due small { display:block; font-size:12px; font-weight:500; color:var(--dim); margin-top:2px; }
-  .act { font-weight:600; }
-  .meta { color:var(--dim); font-size:13px; grid-column:2 / 4; overflow-wrap:anywhere; }
-  .alarmbtn { border:1px solid var(--line); background:transparent; color:var(--txt); border-radius:10px; padding:8px 10px; font-size:14px; }
-  .now .due, .now .act { color:var(--red); } .ready .due, .ready .act { color:var(--amber); }
-  .ok .act { color:var(--green); } .late { opacity:.4; }
-  .banner { position:fixed; inset:0; background:var(--red); display:none; flex-direction:column; align-items:center;
-            justify-content:center; text-align:center; z-index:10; padding:30px; animation:flash 1s infinite; }
+  html { background:var(--bg); }
+  body { margin:0; color:var(--txt); font:16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+         -webkit-font-smoothing:antialiased; }
+  .app { max-width:480px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 28px); }
+  button { font:inherit; color:inherit; cursor:pointer; }
+  .num { font-variant-numeric:tabular-nums; }
+
+  /* header */
+  .top { display:flex; align-items:flex-end; justify-content:space-between; margin:8px 2px 14px; }
+  .eyebrow { font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.04em; }
+  h1 { font-size:30px; line-height:1.15; margin:2px 0 0; font-weight:700; letter-spacing:-.02em; }
+  .icon-btn { width:38px; height:38px; border-radius:50%; border:0; background:var(--card); box-shadow:var(--shadow);
+              display:grid; place-items:center; font-size:18px; }
+
+  /* route tabs */
+  .tabs { display:flex; gap:8px; overflow-x:auto; margin:0 -16px 14px; padding:0 16px; scrollbar-width:none; }
+  .tabs::-webkit-scrollbar { display:none; }
+  .tab { flex:none; border:0; border-radius:999px; padding:8px 14px; font-size:15px; font-weight:500;
+         background:var(--card); box-shadow:var(--shadow); color:var(--txt); }
+  .tab.on { background:var(--txt); color:var(--bg); }
+  .tab.add { color:var(--blue); }
+
+  /* cards */
+  .card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:12px; }
+  .pad { padding:16px; }
+  .section-title { font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.04em; margin:22px 4px 8px;
+                   display:flex; justify-content:space-between; }
+
+  /* journey summary */
+  .journey { display:flex; gap:12px; align-items:center; }
+  .badge { flex:none; min-width:48px; height:32px; padding:0 10px; border-radius:8px; background:var(--brand); color:#fff;
+           display:grid; place-items:center; font-weight:700; font-size:17px; letter-spacing:-.01em; }
+  .stops { min-width:0; }
+  .stops .from { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .stops .to { color:var(--dim); font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
+  .chip { font-size:13px; padding:4px 10px; border-radius:999px; background:var(--fill); color:var(--dim); }
+  .chip.good { color:var(--green); } .chip.bad { color:var(--red); }
+  .disruption { margin-top:10px; font-size:14px; color:var(--red); }
+
+  /* hero */
+  .hero { padding:20px 18px; text-align:center; }
+  .hero .label { font-size:15px; color:var(--dim); font-weight:500; }
+  .hero .big { font-size:56px; font-weight:700; letter-spacing:-.03em; line-height:1.05; margin:4px 0 6px; }
+  .hero .detail { color:var(--dim); font-size:15px; }
+  .hero.now .big { color:var(--red); } .hero.ready .big { color:var(--amber); } .hero.ok .big { color:var(--green); }
+  .bar { height:6px; border-radius:3px; background:var(--fill); overflow:hidden; margin:16px 0 4px; }
+  .bar > i { display:block; height:100%; border-radius:3px; background:currentColor; transition:width 1s linear; }
+  .hero.now .bar { color:var(--red); } .hero.ready .bar { color:var(--amber); } .hero.ok .bar { color:var(--green); }
+  .hero .actions { margin-top:14px; }
+  .pill-btn { border:0; border-radius:999px; padding:10px 18px; font-size:15px; font-weight:600; background:var(--fill); color:var(--blue); }
+
+  /* alarm switch */
+  .row-switch { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; }
+  .row-switch .t { font-weight:600; } .row-switch .s { font-size:13px; color:var(--dim); }
+  .switch { position:relative; flex:none; width:51px; height:31px; border-radius:999px; border:0; background:var(--line); transition:background .2s; }
+  .switch::after { content:""; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%; background:#fff;
+                   box-shadow:0 2px 4px rgba(0,0,0,.2); transition:transform .2s; }
+  .switch.on { background:var(--green); } .switch.on::after { transform:translateX(20px); }
+
+  /* list */
+  .list > .item { display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:center; padding:13px 16px; }
+  .list > .item + .item { border-top:1px solid var(--line); }
+  .item .when { font-size:19px; font-weight:600; display:flex; align-items:center; gap:8px; }
+  .item .sub { font-size:13px; color:var(--dim); grid-column:1; }
+  .item .right { grid-row:1 / 3; grid-column:2; display:flex; align-items:center; gap:8px; }
+  .mins { min-width:64px; text-align:center; padding:6px 10px; border-radius:10px; font-weight:700; font-size:15px; background:var(--fill); }
+  .item.now .mins { background:var(--red); color:#fff; }
+  .item.ready .mins { background:var(--amber); color:#fff; }
+  .item.ok .mins { background:color-mix(in srgb, var(--green) 16%, transparent); color:var(--green); }
+  .item.late { opacity:.4; }
+  .item.sched .when { color:var(--dim); }
+  .live { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 0 0 rgba(52,199,89,.6); animation:pulse 2s infinite; }
+  @keyframes pulse { 70% { box-shadow:0 0 0 6px rgba(52,199,89,0); } 100% { box-shadow:0 0 0 0 rgba(52,199,89,0); } }
+  .tag { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--faint); }
+  .clock-btn { width:36px; height:36px; border-radius:50%; border:0; background:var(--fill); font-size:16px; }
+  .empty { padding:22px 16px; text-align:center; color:var(--dim); }
+  .foot { text-align:center; font-size:12px; color:var(--faint); margin-top:16px; }
+  .err { color:var(--red); }
+
+  /* alarm overlay */
+  .banner { position:fixed; inset:0; z-index:20; display:none; flex-direction:column; align-items:center; justify-content:center;
+            gap:10px; padding:30px; text-align:center; color:#fff; background:var(--red); animation:flash 1s infinite; }
   .banner.show { display:flex; }
-  .banner h2 { font-size:44px; margin:0 0 10px; } .banner p { font-size:20px; margin:0 0 30px; }
-  .banner button { font-size:22px; padding:18px 40px; border-radius:16px; border:0; background:#fff; color:#000; font-weight:700; }
-  @keyframes flash { 50% { background:#b3001b; } }
-  dialog { background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:18px; width:min(94vw,460px); padding:18px; }
-  dialog::backdrop { background:#000a; }
-  label { display:block; font-size:13px; color:var(--dim); margin:12px 0 4px; }
-  input, select { width:100%; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--txt); font-size:16px; }
-  .row { display:flex; gap:10px; } .row > * { flex:1; }
-  .btn { border:0; border-radius:12px; padding:12px 16px; font-size:16px; font-weight:600; background:var(--blue); color:#fff; }
-  .btn.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); }
-  .err { color:var(--red); font-size:14px; }
-  .tiny { color:var(--dim); font-size:12px; text-align:center; margin-top:14px; }
+  .banner h2 { font-size:46px; margin:0; letter-spacing:-.02em; } .banner p { font-size:19px; margin:0 0 26px; opacity:.95; }
+  .banner button { border:0; border-radius:16px; padding:18px 44px; font-size:20px; font-weight:700; background:#fff; color:#000; }
+  @keyframes flash { 50% { background:#c4161c; } }
+
+  /* sheets */
+  dialog { border:0; padding:0; background:var(--bg); color:var(--txt); width:min(100vw, 480px); max-height:92vh;
+           border-radius:20px; margin:auto; }
+  dialog::backdrop { background:rgba(0,0,0,.35); }
+  .sheet-head { display:flex; justify-content:space-between; align-items:center; padding:16px 16px 4px; }
+  .sheet-head h3 { margin:0; font-size:18px; }
+  .link { border:0; background:none; color:var(--blue); font-size:16px; padding:6px; }
+  .link.strong { font-weight:600; } .link:disabled { color:var(--faint); }
+  .form { padding:8px 16px 18px; }
+  .field { background:var(--card); border-radius:12px; margin-top:12px; overflow:hidden; }
+  .field label { display:block; font-size:12px; color:var(--dim); padding:10px 14px 0; }
+  .field input, .field select { width:100%; border:0; outline:0; background:transparent; color:var(--txt); font-size:17px; padding:4px 14px 10px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .picker { max-height:220px; overflow:auto; }
+  .opt { display:block; width:100%; text-align:left; border:0; background:none; padding:11px 14px; border-top:1px solid var(--line); }
+  .opt .a { font-weight:500; } .opt .b { font-size:13px; color:var(--dim); }
+  .opt.sel { background:color-mix(in srgb, var(--blue) 12%, transparent); }
+  .danger { width:100%; margin-top:18px; border:0; border-radius:12px; padding:14px; background:var(--card); color:var(--red); font-weight:600; }
+  .hint { font-size:13px; color:var(--dim); padding:6px 4px 0; }
 </style>
 </head>
 <body>
-<header><h1>🚌 Bus</h1><span class="clock" id="clock"></span></header>
-<div class="chips" id="chips"></div>
-
-<div class="card" id="routeCard"></div>
-<div id="board"></div>
-<div class="tiny" id="foot"></div>
-
-<div class="banner" id="banner"><h2>🏃 LEAVE NOW</h2><p id="bannerText"></p><button id="stopAlarm">Stop alarm</button></div>
-
-<dialog id="dlg">
-  <h3 style="margin-top:0">New route</h3>
-  <label>Bus number</label>
-  <div class="row"><input id="fLine" placeholder="e.g. 135" autocapitalize="off"><button class="btn" id="fLoad" style="flex:none">Find stops</button></div>
-  <div id="fStops" hidden>
-    <label>Boarding stop (letter = direction)</label><input id="fFilter" placeholder="filter, e.g. canary">
-    <select id="fBoard" size="6" style="margin-top:6px"></select>
-    <label>Getting-off stop (optional)</label><select id="fAlight"></select>
-    <div class="row">
-      <div><label>Walk (min)</label><input id="fWalk" type="number" value="10" inputmode="numeric"></div>
-      <div><label>Spare (min)</label><input id="fBuf" type="number" value="1" inputmode="numeric"></div>
-    </div>
-    <label>Route name</label><input id="fName">
+<main class="app">
+  <div class="top">
+    <div><div class="eyebrow num" id="clock"></div><h1 id="title">Bus</h1></div>
+    <button class="icon-btn" id="editBtn" aria-label="Route settings">⚙︎</button>
   </div>
-  <p class="err" id="fErr"></p>
-  <div class="row" style="margin-top:14px"><button class="btn ghost" id="fCancel">Cancel</button><button class="btn" id="fSave" disabled>Save</button></div>
+  <div class="tabs" id="tabs"></div>
+  <div id="content"></div>
+  <div class="foot" id="foot"></div>
+</main>
+
+<div class="banner" id="banner"><h2>Leave now</h2><p id="bannerText"></p><button id="stopAlarm">Stop alarm</button></div>
+
+<!-- add route -->
+<dialog id="addDlg">
+  <div class="sheet-head"><button class="link" data-close>Cancel</button><h3>New route</h3><button class="link strong" id="aSave" disabled>Save</button></div>
+  <div class="form">
+    <div class="field"><label>Bus number</label><input id="aLine" placeholder="e.g. 135" autocapitalize="off" autocomplete="off" enterkeyhint="search"></div>
+    <p class="hint err" id="aErr"></p>
+    <div id="aMore" hidden>
+      <div class="field"><label>Boarding stop — the letter shows the direction</label><input id="aFilter" placeholder="Search stops on this route"><div class="picker" id="aBoard"></div></div>
+      <div class="field"><label>Getting off at (optional)</label><select id="aAlight"></select></div>
+      <div class="grid2">
+        <div class="field"><label>Walk to stop (min)</label><input id="aWalk" type="number" inputmode="numeric" value="10"></div>
+        <div class="field"><label>Spare time (min)</label><input id="aBuf" type="number" inputmode="numeric" value="1"></div>
+      </div>
+      <div class="field"><label>Route name</label><input id="aName"></div>
+    </div>
+  </div>
+</dialog>
+
+<!-- edit route -->
+<dialog id="editDlg">
+  <div class="sheet-head"><button class="link" data-close>Cancel</button><h3>Route settings</h3><button class="link strong" id="eSave">Done</button></div>
+  <div class="form">
+    <div class="field"><label>Route name</label><input id="eName"></div>
+    <div class="grid2">
+      <div class="field"><label>Walk to stop (min)</label><input id="eWalk" type="number" inputmode="numeric"></div>
+      <div class="field"><label>Spare time (min)</label><input id="eBuf" type="number" inputmode="numeric"></div>
+    </div>
+    <p class="hint">The alarm goes off when the bus is walk + spare minutes away.</p>
+    <button class="danger" id="eDelete">Delete route</button>
+  </div>
 </dialog>
 
 <script>
 const API = "https://api.tfl.gov.uk";
-const SHORTCUT = "Bus Alarm";   // name of the iPhone Shortcut that creates a Clock alarm
+const SHORTCUT = "Bus Alarm";          // iPhone Shortcut that creates a Clock alarm
 const POLL_MS = 30000;
-const DEFAULT_ROUTES = [{ name:"135 to work", line:"135", boardId:"490016668K", boardName:"Canary Wharf Station (Stop K)",
-  alightName:"Shoreditch High Street Station", alightIds:["490005910S","490005524E"], walk:15, buffer:1, ready:5 }];
+const SCHED_AHEAD_MIN = 90;            // show timetable buses this far ahead
+const DEFAULT_ROUTES = [{ name:"135 to work", line:"135", boardId:"490016668K", boardStop:"Canary Wharf Station", boardLetter:"K",
+  alightName:"Shoreditch High Street Station", alightIds:["490005910S","490005524E"], walk:15, buffer:1, ready:5, direction:"outbound" }];
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hm = t => new Date(t).toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
 const towards = s => (s.additionalProperties || []).find(p => p.key === "Towards")?.value || "";
-const getJSON = async path => { const r = await fetch(API + path); if (!r.ok) throw new Error(`TfL ${r.status}`); return r.json(); };
+const getJSON = async path => { const r = await fetch(API + path); if (!r.ok) throw new Error(`TfL error ${r.status}`); return r.json(); };
+const MIN = 60000;
 
 let routes = JSON.parse(localStorage.getItem("routes") || "null") || DEFAULT_ROUTES;
-let current = Math.min(+localStorage.getItem("current") || 0, routes.length - 1);
-let state = { buses:[], status:"", disruptions:[], err:"", fetched:0 };
-let watching = false, alarmed = new Set(), pollTimer = null, wakeLock = null;
+let current = Math.min(+localStorage.getItem("current") || 0, Math.max(routes.length - 1, 0));
+let live = [], sched = [], status = null, disruptions = [], err = "", fetched = 0, loading = true;
+let watching = false, alarmed = new Set(), wakeLock = null;
+const ttCache = {};
 const saveRoutes = () => localStorage.setItem("routes", JSON.stringify(routes));
+const route = () => routes[current];
 
 // ---------- data ----------
 async function refresh() {
-  const r = routes[current]; if (!r) return;
+  const r = route(); if (!r) { render(); return; }
   try {
     const arr = (await getJSON(`/StopPoint/${r.boardId}/Arrivals`))
       .filter(a => a.lineId === r.line).sort((a, b) => Date.parse(a.expectedArrival) - Date.parse(b.expectedArrival));
+    if (arr[0] && r.direction !== arr[0].direction) { r.direction = arr[0].direction; saveRoutes(); }
     const trips = {};
-    if (arr.length) {
-      try {
-        for (const p of await getJSON(`/Vehicle/${arr.map(a => a.vehicleId).join(",")}/Arrivals`))
-          if (p.lineId === r.line) (trips[p.vehicleId] ||= []).push(p);
-      } catch {}
-    }
-    state.buses = arr.map(a => {
+    if (arr.length) try {
+      for (const p of await getJSON(`/Vehicle/${arr.map(a => a.vehicleId).join(",")}/Arrivals`))
+        if (p.lineId === r.line) (trips[p.vehicleId] ||= []).push(p);
+    } catch {}
+    live = arr.map(a => {
       const at = Date.parse(a.expectedArrival);
       const stops = (trips[a.vehicleId] || []).sort((x, y) => Date.parse(x.expectedArrival) - Date.parse(y.expectedArrival));
       const off = stops.find(p => (r.alightIds || []).includes(p.naptanId) && Date.parse(p.expectedArrival) > at);
-      return { vid:a.vehicleId, at, stopsAway: stops.length ? stops.filter(p => Date.parse(p.expectedArrival) < at).length : null,
-               near: stops[0]?.stationName || a.currentLocation || "", off: off ? Date.parse(off.expectedArrival) : null };
+      return { id:a.vehicleId, live:true, at, near: stops[0]?.stationName || a.currentLocation || "",
+               stopsAway: stops.length ? stops.filter(p => Date.parse(p.expectedArrival) < at).length : null,
+               off: off ? Date.parse(off.expectedArrival) : null };
     });
-    try {
-      const ls = (await getJSON(`/Line/${r.line}/Status`))[0].lineStatuses;
-      state.status = ls.map(s => s.statusSeverityDescription).join(", ");
-      state.disruptions = ls.filter(s => s.reason).map(s => s.reason);
-    } catch {}
-    state.err = ""; state.fetched = Date.now();
-  } catch (e) { state.err = e.message || "Network error"; }
+    err = "";
+  } catch (e) { err = "Can't reach TfL — retrying"; }
+  try { sched = await timetable(r); } catch { sched = []; }
+  try {
+    const ls = (await getJSON(`/Line/${r.line}/Status`))[0].lineStatuses;
+    status = ls.map(s => s.statusSeverityDescription).join(", ");
+    disruptions = ls.filter(s => s.reason).map(s => s.reason);
+  } catch {}
+  fetched = Date.now(); loading = false;
   render();
 }
 
-// ---------- render (ticks every second; minutes computed from absolute arrival time) ----------
+// Scheduled departures from the TfL timetable (fills the gap beyond the ~30 min live horizon)
+async function timetable(r) {
+  const key = `${r.line}|${r.boardId}|${new Date().toDateString()}`;
+  if (!ttCache[key]) {
+    const dirs = r.direction ? [r.direction, r.direction === "outbound" ? "inbound" : "outbound"] : ["outbound", "inbound"];
+    for (const d of dirs) {
+      try {
+        const t = await getJSON(`/Line/${r.line}/Timetable/${r.boardId}?direction=${d}`);
+        if (t.timetable?.routes?.[0]?.schedules?.length) { ttCache[key] = t.timetable.routes[0].schedules; break; }
+      } catch {}
+    }
+    ttCache[key] ||= [];
+  }
+  const now = new Date(), base = new Date(now); base.setHours(0, 0, 0, 0);
+  if (now.getHours() < 4) base.setDate(base.getDate() - 1);   // after midnight still belongs to yesterday's service
+  const dow = base.getDay();
+  const pick = ttCache[key].find(s => dow === 0 ? /sunday/i.test(s.name) : dow === 6 ? /saturday/i.test(s.name) : /monday|weekday/i.test(s.name))
+            || ttCache[key][0];
+  return (pick?.knownJourneys || []).map(j => ({ live:false, id:`s${j.hour}:${j.minute}`, at: base.getTime() + (+j.hour * 60 + +j.minute) * MIN }));
+}
+
+function upcoming(now) {
+  const lastLive = live.length ? live[live.length - 1].at : now;
+  const extra = sched.filter(s => s.at > lastLive + 2 * MIN && s.at > now && s.at < now + SCHED_AHEAD_MIN * MIN);
+  return [...live.filter(b => b.at > now - MIN), ...extra].slice(0, 8);
+}
+
+function stateOf(r, b, now) {
+  const eta = (b.at - now) / MIN, leaveIn = eta - r.walk;
+  const cls = leaveIn < -1 ? "late" : leaveIn <= r.buffer ? "now" : leaveIn <= r.buffer + r.ready ? "ready" : "ok";
+  return { eta, leaveIn, cls, leaveAt: b.at - r.walk * MIN };
+}
+const mmss = m => { const s = Math.max(0, Math.round(m * 60)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+
+// ---------- render ----------
 function render() {
-  $("clock").textContent = new Date().toLocaleTimeString("en-GB");
-  $("chips").innerHTML = routes.map((r, i) => `<button class="chip ${i === current ? "on" : ""}" data-i="${i}">${esc(r.name)}</button>`).join("")
-    + `<button class="chip" id="addBtn">＋ Add</button>`;
-  const r = routes[current];
-  if (!r) { $("routeCard").innerHTML = `<p>No routes. Tap ＋ Add.</p>`; $("board").innerHTML = ""; return; }
+  const now = Date.now(), r = route();
+  $("clock").textContent = new Date(now).toLocaleString("en-GB", { weekday:"short", hour:"2-digit", minute:"2-digit", second:"2-digit" });
+  $("title").textContent = r ? r.name : "Bus";
+  $("tabs").innerHTML = routes.map((x, i) => `<button class="tab ${i === current ? "on" : ""}" data-tab="${i}">${esc(x.name)}</button>`).join("")
+    + `<button class="tab add" id="addBtn">＋ New route</button>`;
+  $("editBtn").hidden = !r;
+  if (!r) { $("content").innerHTML = `<div class="card empty">No saved routes yet. Tap <b>＋ New route</b>.</div>`; $("foot").textContent = ""; return; }
 
-  const good = state.status === "Good Service";
-  $("routeCard").innerHTML = `
-    <div style="display:flex;justify-content:space-between;gap:8px">
-      <div><b>${esc(r.line.toUpperCase())}</b> · ${esc(r.boardName)}${r.alightName ? ` → ${esc(r.alightName)}` : ""}
-        <div class="sub">Walk ${r.walk} min · alarm at ${r.walk + r.buffer} min</div></div>
-      <button class="alarmbtn" id="delRoute" title="Delete route">🗑</button>
-    </div>
-    ${state.status ? `<div class="status" style="color:${good ? "var(--green)" : "var(--red)"}">● ${esc(state.status)}</div>` : ""}
-    ${state.disruptions.map(d => `<div class="status" style="color:var(--red)">⚠ ${esc(d)}</div>`).join("")}
-    <button class="watch ${watching ? "on" : ""}" id="watchBtn">${watching ? "🔔 Alarm ON — tap to turn off" : "🔕 Alarm OFF — tap to turn on"}</button>`;
+  const list = upcoming(now);
+  const next = list.find(b => stateOf(r, b, now).leaveIn >= -1);
 
-  const now = Date.now();
-  let prev = null;
-  const rows = state.buses.filter(b => b.at > now - 60000).map(b => {
-    const eta = (b.at - now) / 60000, leaveIn = eta - r.walk, leaveAt = b.at - r.walk * 60000;
-    let cls, act;
-    if (leaveIn < -1) { cls = "late"; act = "Too late to walk"; }
-    else if (leaveIn <= r.buffer) { cls = "now"; act = "🏃 LEAVE NOW"; }
-    else if (leaveIn <= r.buffer + r.ready) { cls = "ready"; act = `Get ready · leave in ${Math.floor(leaveIn)} min`; }
-    else { cls = "ok"; act = `Leave in ${Math.floor(leaveIn)} min`; }
-    const gap = prev !== null ? ` · gap ${Math.floor((b.at - prev) / 60000)}m` : ""; prev = b.at;
-    const due = eta < 1 ? "due" : Math.floor(eta);
-    const alarmBtn = leaveIn > 0 ? `<button class="alarmbtn" data-alarm="${leaveAt}" data-bus="${hm(b.at)}">⏰ ${hm(leaveAt)}</button>` : "";
-    return `<div class="card bus ${cls}">
-      <div class="due">${due}${eta >= 1 ? "<small>min</small>" : ""}</div>
-      <div><div class="act">${act}</div><div class="sub">Arrives ${hm(b.at)} · leave by ${hm(leaveAt)}</div></div>
-      ${alarmBtn}
-      <div class="meta">${b.stopsAway ?? "—"} stops away · near ${esc(b.near)}${gap}${b.off ? ` · get off ${hm(b.off)}` : ""} · ${esc(b.vid)}</div>
+  // journey card
+  const good = status === "Good Service";
+  let html = `<div class="card pad">
+    <div class="journey"><div class="badge">${esc(r.line.toUpperCase())}</div>
+      <div class="stops"><div class="from">${esc(r.boardStop)} · Stop ${esc(r.boardLetter)}</div>
+      <div class="to">${r.alightName ? `to ${esc(r.alightName)}` : "Any destination"}</div></div></div>
+    <div class="chips"><span class="chip">🚶 ${r.walk} min walk</span><span class="chip">+${r.buffer} min spare</span>
+      ${status ? `<span class="chip ${good ? "good" : "bad"}">● ${esc(status)}</span>` : ""}</div>
+    ${disruptions.map(d => `<div class="disruption">⚠︎ ${esc(d)}</div>`).join("")}
+  </div>`;
+
+  // hero
+  if (loading) html += `<div class="card hero"><div class="label">Loading live times…</div></div>`;
+  else if (!next) html += `<div class="card hero"><div class="label">No more buses you can catch soon</div><div class="detail">Check back later</div></div>`;
+  else {
+    const s = stateOf(r, next, now);
+    const label = s.cls === "now" ? "Time to go" : "Leave in";
+    const big = s.cls === "now" ? "Leave now" : mmss(s.leaveIn);
+    const pct = Math.max(0, Math.min(100, 100 - (s.leaveIn / 30) * 100));
+    html += `<div class="card hero ${s.cls}">
+      <div class="label">${label}${next.live ? "" : " · timetable"}</div>
+      <div class="big num">${big}</div>
+      <div class="detail">Leave by <b>${hm(s.leaveAt)}</b> · bus at ${hm(next.at)}${next.off ? ` · arrive ${hm(next.off)}` : ""}</div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      ${s.leaveIn > 0 ? `<div class="actions"><button class="pill-btn" data-alarm="${s.leaveAt}" data-bus="${hm(next.at)}">⏰ Set iPhone alarm for ${hm(s.leaveAt)}</button></div>` : ""}
     </div>`;
-  });
-  $("board").innerHTML = (state.err ? `<div class="card err">⚠ ${esc(state.err)} — retrying</div>` : "")
-    + (rows.join("") || `<div class="card sub">No ${esc(r.line)}s predicted right now.</div>`);
-  $("foot").textContent = state.fetched ? `Updated ${Math.round((now - state.fetched) / 1000)}s ago · ⏰ = set a real iPhone alarm` : "Loading…";
+  }
+
+  // alarm switch
+  html += `<div class="card row-switch">
+    <div><div class="t">Leave-now alarm</div><div class="s">${watching ? "On — keep this screen open" : "Rings in the app when it's time to leave"}</div></div>
+    <button class="switch ${watching ? "on" : ""}" id="watchBtn" role="switch" aria-checked="${watching}" aria-label="Leave-now alarm"></button>
+  </div>`;
+
+  // list
+  html += `<div class="section-title"><span>Upcoming buses</span><span>${list.filter(b => b.live).length} live</span></div><div class="card list">`;
+  if (err) html += `<div class="empty err">${esc(err)}</div>`;
+  else if (!list.length && !loading) html += `<div class="empty">No ${esc(r.line.toUpperCase())} buses in the next ${SCHED_AHEAD_MIN} min</div>`;
+  let prev = null;
+  for (const b of list) {
+    const s = stateOf(r, b, now);
+    const mins = s.eta < 1 ? "Due" : `${Math.floor(s.eta)} min`;
+    const bits = [s.cls === "late" ? "Too late to walk" : `Leave by ${hm(s.leaveAt)}`];
+    if (b.live) {
+      if (b.stopsAway != null) bits.push(`${b.stopsAway} stop${b.stopsAway === 1 ? "" : "s"} away`);
+      if (b.near) bits.push(`near ${esc(b.near)}`);
+      if (b.off) bits.push(`arrive ${hm(b.off)}`);
+    }
+    if (prev) bits.push(`+${Math.round((b.at - prev) / MIN)} min gap`);
+    prev = b.at;
+    html += `<div class="item ${s.cls} ${b.live ? "" : "sched"}">
+      <div class="when num">${b.live ? `<span class="live" title="Live"></span>` : ""}${hm(b.at)}${b.live ? "" : `<span class="tag">Timetable</span>`}</div>
+      <div class="right"><span class="mins num">${mins}</span>
+        ${s.leaveIn > 0 ? `<button class="clock-btn" aria-label="Set iPhone alarm" data-alarm="${s.leaveAt}" data-bus="${hm(b.at)}">⏰</button>` : ""}</div>
+      <div class="sub">${bits.join(" · ")}</div>
+    </div>`;
+  }
+  html += `</div>`;
+  $("content").innerHTML = html;
+  $("foot").textContent = fetched ? `Live TfL data · updated ${Math.round((now - fetched) / 1000)}s ago` : "";
 
   if (watching) checkAlarm(r, now);
 }
@@ -181,18 +345,18 @@ let audio = null, beepTimer = null;
 function beep() {
   if (!audio) return;
   const t = audio.currentTime;
-  [0, 0.25, 0.5].forEach(d => {
+  [0, .22, .44].forEach(d => {
     const o = audio.createOscillator(), g = audio.createGain();
-    o.frequency.value = 880; o.type = "square"; g.gain.value = 0.25;
-    o.connect(g).connect(audio.destination); o.start(t + d); o.stop(t + d + 0.15);
+    o.type = "square"; o.frequency.value = 880; g.gain.value = .22;
+    o.connect(g).connect(audio.destination); o.start(t + d); o.stop(t + d + .14);
   });
 }
 function checkAlarm(r, now) {
-  for (const b of state.buses) {
-    const leaveIn = (b.at - now) / 60000 - r.walk;
-    if (leaveIn >= -1 && leaveIn <= r.buffer && !alarmed.has(b.vid)) {
-      alarmed.add(b.vid);
-      $("bannerText").textContent = `${r.line.toUpperCase()} arrives ${hm(b.at)} at ${r.boardName}`;
+  for (const b of live) {
+    const { leaveIn } = stateOf(r, b, now);
+    if (leaveIn >= -1 && leaveIn <= r.buffer && !alarmed.has(b.id)) {
+      alarmed.add(b.id);
+      $("bannerText").textContent = `${r.line.toUpperCase()} arrives at ${hm(b.at)} · ${r.boardStop} Stop ${r.boardLetter}`;
       $("banner").classList.add("show");
       clearInterval(beepTimer); beep(); beepTimer = setInterval(beep, 1200);
       navigator.vibrate?.([400, 200, 400]);
@@ -200,73 +364,101 @@ function checkAlarm(r, now) {
   }
 }
 function stopAlarm() { clearInterval(beepTimer); $("banner").classList.remove("show"); }
-
 async function setWatching(on) {
   watching = on; alarmed = new Set();
   if (on) {
-    audio ||= new (window.AudioContext || window.webkitAudioContext)(); await audio.resume();  // unlock audio on tap
-    // buses already inside the leave-now window when you switch on don't ring
-    const r = routes[current], now = Date.now();
-    state.buses.forEach(b => { if ((b.at - now) / 60000 - r.walk <= r.buffer) alarmed.add(b.vid); });
+    audio ||= new (window.AudioContext || window.webkitAudioContext)(); await audio.resume();   // unlock audio on tap
+    const r = route(), now = Date.now();
+    live.forEach(b => { if (stateOf(r, b, now).leaveIn <= r.buffer) alarmed.add(b.id); });   // don't ring for buses already past
     try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
-  } else { stopAlarm(); wakeLock?.release(); wakeLock = null; }
+  } else { stopAlarm(); wakeLock?.release?.(); wakeLock = null; }
   render();
 }
 document.addEventListener("visibilitychange", async () => {
-  if (document.visibilityState === "visible") { refresh(); if (watching) try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {} }
+  if (document.visibilityState !== "visible") return;
+  refresh();
+  if (watching) try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
 });
 
+function switchTo(i) {
+  current = i; localStorage.setItem("current", i);
+  live = []; sched = []; status = null; disruptions = []; err = ""; loading = true;
+  setWatching(false); refresh();
+}
+
 // ---------- events ----------
-document.body.addEventListener("click", e => {
+document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t) return;
-  if (t.dataset.i !== undefined) { current = +t.dataset.i; localStorage.setItem("current", current); state = { buses:[], status:"", disruptions:[], err:"", fetched:0 }; setWatching(false); refresh(); }
+  if (t.dataset.tab !== undefined) switchTo(+t.dataset.tab);
   else if (t.id === "addBtn") openAdd();
+  else if (t.id === "editBtn") openEdit();
   else if (t.id === "watchBtn") setWatching(!watching);
   else if (t.id === "stopAlarm") stopAlarm();
-  else if (t.id === "delRoute" && confirm(`Delete "${routes[current].name}"?`)) { routes.splice(current, 1); current = 0; saveRoutes(); refresh(); render(); }
+  else if (t.dataset.close !== undefined) t.closest("dialog").close();
   else if (t.dataset.alarm) {
-    const text = `${hm(+t.dataset.alarm)}|🚌 Leave now — ${routes[current].line.toUpperCase()} at ${t.dataset.bus}`;
+    const text = `${hm(+t.dataset.alarm)}|Leave now: ${route().line.toUpperCase()} at ${t.dataset.bus}`;
     location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(SHORTCUT)}&input=text&text=${encodeURIComponent(text)}`;
   }
 });
 
-// ---------- add-route dialog ----------
-let lineStops = [];
-function openAdd() { $("fErr").textContent = ""; $("fStops").hidden = true; $("fSave").disabled = true; $("fLine").value = ""; $("dlg").showModal(); }
-$("fCancel").onclick = () => $("dlg").close();
-$("fLoad").onclick = async () => {
-  $("fErr").textContent = "";
-  try { lineStops = (await getJSON(`/Line/${encodeURIComponent($("fLine").value.trim().toLowerCase())}/StopPoints`)).filter(s => !s.naptanId.startsWith("490G")); }
-  catch { $("fErr").textContent = "Couldn't find that bus."; return; }
+// edit
+function openEdit() { const r = route(); $("eName").value = r.name; $("eWalk").value = r.walk; $("eBuf").value = r.buffer; $("editDlg").showModal(); }
+$("eSave").onclick = () => {
+  const r = route(); r.name = $("eName").value.trim() || r.name; r.walk = Math.max(0, +$("eWalk").value || 0); r.buffer = Math.max(0, +$("eBuf").value || 0);
+  saveRoutes(); $("editDlg").close(); render();
+};
+$("eDelete").onclick = () => {
+  if (!confirm(`Delete "${route().name}"?`)) return;
+  routes.splice(current, 1); saveRoutes(); $("editDlg").close(); switchTo(0);
+};
+
+// add
+let lineStops = [], picked = null;
+function openAdd() { $("aLine").value = ""; $("aErr").textContent = ""; $("aMore").hidden = true; $("aSave").disabled = true; picked = null; $("addDlg").showModal(); }
+async function loadLine() {
+  const line = $("aLine").value.trim().toLowerCase(); if (!line) return;
+  $("aErr").textContent = "Finding stops…";
+  try { lineStops = (await getJSON(`/Line/${encodeURIComponent(line)}/StopPoints`)).filter(s => !s.naptanId.startsWith("490G")); }
+  catch { $("aErr").textContent = "Couldn't find that bus number."; return; }
   lineStops.sort((a, b) => a.commonName.localeCompare(b.commonName) || (a.stopLetter || "").localeCompare(b.stopLetter || ""));
-  $("fStops").hidden = false; $("fFilter").value = ""; fillBoard();
-  const names = [...new Set(lineStops.map(s => s.commonName))];
-  $("fAlight").innerHTML = `<option value="">— none —</option>` + names.map(n => `<option>${esc(n)}</option>`).join("");
-};
-function fillBoard() {
-  const q = $("fFilter").value.toLowerCase();
-  $("fBoard").innerHTML = lineStops.filter(s => s.commonName.toLowerCase().includes(q))
-    .map(s => `<option value="${s.naptanId}">${esc(s.commonName)} — Stop ${esc(s.stopLetter || s.indicator || "")} → ${esc(towards(s))}</option>`).join("");
+  $("aErr").textContent = ""; $("aMore").hidden = false; $("aFilter").value = ""; drawPicker();
+  $("aAlight").innerHTML = `<option value="">—</option>` + [...new Set(lineStops.map(s => s.commonName))].map(n => `<option>${esc(n)}</option>`).join("");
+  $("aFilter").focus();
 }
-$("fFilter").oninput = fillBoard;
-$("fBoard").onchange = () => {
-  const s = lineStops.find(x => x.naptanId === $("fBoard").value);
-  $("fName").value = `${$("fLine").value.trim().toUpperCase()} from ${s.commonName}`; $("fSave").disabled = false;
-};
-$("fSave").onclick = () => {
-  const s = lineStops.find(x => x.naptanId === $("fBoard").value); if (!s) return;
-  const an = $("fAlight").value;
-  routes.push({ name: $("fName").value.trim() || s.commonName, line: $("fLine").value.trim().toLowerCase(),
-    boardId: s.naptanId, boardName: `${s.commonName} (Stop ${s.stopLetter || s.indicator || ""})`,
+$("aLine").addEventListener("change", loadLine);
+$("aLine").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); loadLine(); } });
+function drawPicker() {
+  const q = $("aFilter").value.toLowerCase();
+  $("aBoard").innerHTML = lineStops.filter(s => s.commonName.toLowerCase().includes(q)).slice(0, 60).map(s =>
+    `<button class="opt ${picked?.naptanId === s.naptanId ? "sel" : ""}" data-stop="${s.naptanId}">
+       <div class="a">${esc(s.commonName)} · Stop ${esc(s.stopLetter || s.indicator || "")}</div><div class="b">towards ${esc(towards(s) || "—")}</div></button>`).join("")
+    || `<div class="opt b">No matching stops</div>`;
+}
+$("aFilter").oninput = drawPicker;
+$("aBoard").addEventListener("click", e => {
+  const b = e.target.closest("[data-stop]"); if (!b) return;
+  picked = lineStops.find(s => s.naptanId === b.dataset.stop);
+  if (!$("aName").value || $("aName").dataset.auto) { $("aName").value = `${$("aLine").value.trim().toUpperCase()} from ${picked.commonName}`; $("aName").dataset.auto = 1; }
+  $("aSave").disabled = false; drawPicker();
+});
+$("aName").oninput = () => delete $("aName").dataset.auto;
+$("aSave").onclick = () => {
+  if (!picked) return;
+  const an = $("aAlight").value;
+  routes.push({ name: $("aName").value.trim() || picked.commonName, line: $("aLine").value.trim().toLowerCase(),
+    boardId: picked.naptanId, boardStop: picked.commonName, boardLetter: picked.stopLetter || picked.indicator || "",
     alightName: an || null, alightIds: an ? lineStops.filter(x => x.commonName === an).map(x => x.naptanId) : [],
-    walk: +$("fWalk").value || 0, buffer: +$("fBuf").value || 0, ready: 5 });
-  current = routes.length - 1; localStorage.setItem("current", current); saveRoutes(); $("dlg").close();
-  state = { buses:[], status:"", disruptions:[], err:"", fetched:0 }; refresh();
+    walk: Math.max(0, +$("aWalk").value || 0), buffer: Math.max(0, +$("aBuf").value || 0), ready: 5, direction: null });
+  saveRoutes(); $("addDlg").close(); switchTo(routes.length - 1);
 };
+
+// migrate routes saved by the first version
+routes.forEach(r => { if (!r.boardStop && r.boardName) { const m = r.boardName.match(/^(.*) \(Stop (.*)\)$/); r.boardStop = m ? m[1] : r.boardName; r.boardLetter = m ? m[2] : ""; } });
+saveRoutes();
 
 render(); refresh();
 setInterval(render, 1000);
-pollTimer = setInterval(refresh, POLL_MS);
+setInterval(refresh, POLL_MS);
 </script>
 </body>
 </html>
