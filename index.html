@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bus">
+<meta name="theme-color" content="#0b0d12">
+<title>Bus</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23dc241f'/%3E%3Ctext x='90' y='120' font-size='100' text-anchor='middle'%3E🚌%3C/text%3E%3C/svg%3E">
+<style>
+  :root { --bg:#0b0d12; --card:#161a22; --line:#262c38; --txt:#eef1f6; --dim:#8b93a3;
+          --red:#ff453a; --amber:#ffb340; --green:#32d74b; --blue:#0a84ff; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { max-width:100%; }
+  body { margin:0; background:var(--bg); color:var(--txt); font:16px/1.35 -apple-system, system-ui, sans-serif;
+         padding:env(safe-area-inset-top) 14px calc(env(safe-area-inset-bottom) + 20px); }
+  header { display:flex; align-items:center; justify-content:space-between; padding:14px 2px 6px; }
+  h1 { font-size:22px; margin:0; }
+  .clock { color:var(--dim); font-variant-numeric:tabular-nums; }
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:8px 0; }
+  .chip { flex:none; border:1px solid var(--line); background:var(--card); color:var(--txt); border-radius:999px;
+          padding:8px 14px; font-size:15px; }
+  .chip.on { background:var(--blue); border-color:var(--blue); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:14px; margin:10px 0; }
+  .sub { color:var(--dim); font-size:14px; }
+  .status { font-size:14px; margin-top:6px; }
+  .watch { width:100%; border:0; border-radius:14px; padding:16px; font-size:18px; font-weight:600; color:#fff;
+           background:var(--line); margin-top:4px; }
+  .watch.on { background:var(--green); color:#000; }
+  .bus { display:grid; grid-template-columns:64px minmax(0,1fr) auto; gap:4px 12px; align-items:center; }
+  .due { font-size:30px; font-weight:700; font-variant-numeric:tabular-nums; text-align:center; line-height:1; }
+  .due small { display:block; font-size:12px; font-weight:500; color:var(--dim); margin-top:2px; }
+  .act { font-weight:600; }
+  .meta { color:var(--dim); font-size:13px; grid-column:2 / 4; overflow-wrap:anywhere; }
+  .alarmbtn { border:1px solid var(--line); background:transparent; color:var(--txt); border-radius:10px; padding:8px 10px; font-size:14px; }
+  .now .due, .now .act { color:var(--red); } .ready .due, .ready .act { color:var(--amber); }
+  .ok .act { color:var(--green); } .late { opacity:.4; }
+  .banner { position:fixed; inset:0; background:var(--red); display:none; flex-direction:column; align-items:center;
+            justify-content:center; text-align:center; z-index:10; padding:30px; animation:flash 1s infinite; }
+  .banner.show { display:flex; }
+  .banner h2 { font-size:44px; margin:0 0 10px; } .banner p { font-size:20px; margin:0 0 30px; }
+  .banner button { font-size:22px; padding:18px 40px; border-radius:16px; border:0; background:#fff; color:#000; font-weight:700; }
+  @keyframes flash { 50% { background:#b3001b; } }
+  dialog { background:var(--card); color:var(--txt); border:1px solid var(--line); border-radius:18px; width:min(94vw,460px); padding:18px; }
+  dialog::backdrop { background:#000a; }
+  label { display:block; font-size:13px; color:var(--dim); margin:12px 0 4px; }
+  input, select { width:100%; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--bg); color:var(--txt); font-size:16px; }
+  .row { display:flex; gap:10px; } .row > * { flex:1; }
+  .btn { border:0; border-radius:12px; padding:12px 16px; font-size:16px; font-weight:600; background:var(--blue); color:#fff; }
+  .btn.ghost { background:transparent; border:1px solid var(--line); color:var(--txt); }
+  .err { color:var(--red); font-size:14px; }
+  .tiny { color:var(--dim); font-size:12px; text-align:center; margin-top:14px; }
+</style>
+</head>
+<body>
+<header><h1>🚌 Bus</h1><span class="clock" id="clock"></span></header>
+<div class="chips" id="chips"></div>
+
+<div class="card" id="routeCard"></div>
+<div id="board"></div>
+<div class="tiny" id="foot"></div>
+
+<div class="banner" id="banner"><h2>🏃 LEAVE NOW</h2><p id="bannerText"></p><button id="stopAlarm">Stop alarm</button></div>
+
+<dialog id="dlg">
+  <h3 style="margin-top:0">New route</h3>
+  <label>Bus number</label>
+  <div class="row"><input id="fLine" placeholder="e.g. 135" autocapitalize="off"><button class="btn" id="fLoad" style="flex:none">Find stops</button></div>
+  <div id="fStops" hidden>
+    <label>Boarding stop (letter = direction)</label><input id="fFilter" placeholder="filter, e.g. canary">
+    <select id="fBoard" size="6" style="margin-top:6px"></select>
+    <label>Getting-off stop (optional)</label><select id="fAlight"></select>
+    <div class="row">
+      <div><label>Walk (min)</label><input id="fWalk" type="number" value="10" inputmode="numeric"></div>
+      <div><label>Spare (min)</label><input id="fBuf" type="number" value="1" inputmode="numeric"></div>
+    </div>
+    <label>Route name</label><input id="fName">
+  </div>
+  <p class="err" id="fErr"></p>
+  <div class="row" style="margin-top:14px"><button class="btn ghost" id="fCancel">Cancel</button><button class="btn" id="fSave" disabled>Save</button></div>
+</dialog>
+
+<script>
+const API = "https://api.tfl.gov.uk";
+const SHORTCUT = "Bus Alarm";   // name of the iPhone Shortcut that creates a Clock alarm
+const POLL_MS = 30000;
+const DEFAULT_ROUTES = [{ name:"135 to work", line:"135", boardId:"490016668K", boardName:"Canary Wharf Station (Stop K)",
+  alightName:"Shoreditch High Street Station", alightIds:["490005910S","490005524E"], walk:15, buffer:1, ready:5 }];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hm = t => new Date(t).toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
+const towards = s => (s.additionalProperties || []).find(p => p.key === "Towards")?.value || "";
+const getJSON = async path => { const r = await fetch(API + path); if (!r.ok) throw new Error(`TfL ${r.status}`); return r.json(); };
+
+let routes = JSON.parse(localStorage.getItem("routes") || "null") || DEFAULT_ROUTES;
+let current = Math.min(+localStorage.getItem("current") || 0, routes.length - 1);
+let state = { buses:[], status:"", disruptions:[], err:"", fetched:0 };
+let watching = false, alarmed = new Set(), pollTimer = null, wakeLock = null;
+const saveRoutes = () => localStorage.setItem("routes", JSON.stringify(routes));
+
+// ---------- data ----------
+async function refresh() {
+  const r = routes[current]; if (!r) return;
+  try {
+    const arr = (await getJSON(`/StopPoint/${r.boardId}/Arrivals`))
+      .filter(a => a.lineId === r.line).sort((a, b) => Date.parse(a.expectedArrival) - Date.parse(b.expectedArrival));
+    const trips = {};
+    if (arr.length) {
+      try {
+        for (const p of await getJSON(`/Vehicle/${arr.map(a => a.vehicleId).join(",")}/Arrivals`))
+          if (p.lineId === r.line) (trips[p.vehicleId] ||= []).push(p);
+      } catch {}
+    }
+    state.buses = arr.map(a => {
+      const at = Date.parse(a.expectedArrival);
+      const stops = (trips[a.vehicleId] || []).sort((x, y) => Date.parse(x.expectedArrival) - Date.parse(y.expectedArrival));
+      const off = stops.find(p => (r.alightIds || []).includes(p.naptanId) && Date.parse(p.expectedArrival) > at);
+      return { vid:a.vehicleId, at, stopsAway: stops.length ? stops.filter(p => Date.parse(p.expectedArrival) < at).length : null,
+               near: stops[0]?.stationName || a.currentLocation || "", off: off ? Date.parse(off.expectedArrival) : null };
+    });
+    try {
+      const ls = (await getJSON(`/Line/${r.line}/Status`))[0].lineStatuses;
+      state.status = ls.map(s => s.statusSeverityDescription).join(", ");
+      state.disruptions = ls.filter(s => s.reason).map(s => s.reason);
+    } catch {}
+    state.err = ""; state.fetched = Date.now();
+  } catch (e) { state.err = e.message || "Network error"; }
+  render();
+}
+
+// ---------- render (ticks every second; minutes computed from absolute arrival time) ----------
+function render() {
+  $("clock").textContent = new Date().toLocaleTimeString("en-GB");
+  $("chips").innerHTML = routes.map((r, i) => `<button class="chip ${i === current ? "on" : ""}" data-i="${i}">${esc(r.name)}</button>`).join("")
+    + `<button class="chip" id="addBtn">＋ Add</button>`;
+  const r = routes[current];
+  if (!r) { $("routeCard").innerHTML = `<p>No routes. Tap ＋ Add.</p>`; $("board").innerHTML = ""; return; }
+
+  const good = state.status === "Good Service";
+  $("routeCard").innerHTML = `
+    <div style="display:flex;justify-content:space-between;gap:8px">
+      <div><b>${esc(r.line.toUpperCase())}</b> · ${esc(r.boardName)}${r.alightName ? ` → ${esc(r.alightName)}` : ""}
+        <div class="sub">Walk ${r.walk} min · alarm at ${r.walk + r.buffer} min</div></div>
+      <button class="alarmbtn" id="delRoute" title="Delete route">🗑</button>
+    </div>
+    ${state.status ? `<div class="status" style="color:${good ? "var(--green)" : "var(--red)"}">● ${esc(state.status)}</div>` : ""}
+    ${state.disruptions.map(d => `<div class="status" style="color:var(--red)">⚠ ${esc(d)}</div>`).join("")}
+    <button class="watch ${watching ? "on" : ""}" id="watchBtn">${watching ? "🔔 Alarm ON — tap to turn off" : "🔕 Alarm OFF — tap to turn on"}</button>`;
+
+  const now = Date.now();
+  let prev = null;
+  const rows = state.buses.filter(b => b.at > now - 60000).map(b => {
+    const eta = (b.at - now) / 60000, leaveIn = eta - r.walk, leaveAt = b.at - r.walk * 60000;
+    let cls, act;
+    if (leaveIn < -1) { cls = "late"; act = "Too late to walk"; }
+    else if (leaveIn <= r.buffer) { cls = "now"; act = "🏃 LEAVE NOW"; }
+    else if (leaveIn <= r.buffer + r.ready) { cls = "ready"; act = `Get ready · leave in ${Math.floor(leaveIn)} min`; }
+    else { cls = "ok"; act = `Leave in ${Math.floor(leaveIn)} min`; }
+    const gap = prev !== null ? ` · gap ${Math.floor((b.at - prev) / 60000)}m` : ""; prev = b.at;
+    const due = eta < 1 ? "due" : Math.floor(eta);
+    const alarmBtn = leaveIn > 0 ? `<button class="alarmbtn" data-alarm="${leaveAt}" data-bus="${hm(b.at)}">⏰ ${hm(leaveAt)}</button>` : "";
+    return `<div class="card bus ${cls}">
+      <div class="due">${due}${eta >= 1 ? "<small>min</small>" : ""}</div>
+      <div><div class="act">${act}</div><div class="sub">Arrives ${hm(b.at)} · leave by ${hm(leaveAt)}</div></div>
+      ${alarmBtn}
+      <div class="meta">${b.stopsAway ?? "—"} stops away · near ${esc(b.near)}${gap}${b.off ? ` · get off ${hm(b.off)}` : ""} · ${esc(b.vid)}</div>
+    </div>`;
+  });
+  $("board").innerHTML = (state.err ? `<div class="card err">⚠ ${esc(state.err)} — retrying</div>` : "")
+    + (rows.join("") || `<div class="card sub">No ${esc(r.line)}s predicted right now.</div>`);
+  $("foot").textContent = state.fetched ? `Updated ${Math.round((now - state.fetched) / 1000)}s ago · ⏰ = set a real iPhone alarm` : "Loading…";
+
+  if (watching) checkAlarm(r, now);
+}
+
+// ---------- in-app alarm ----------
+let audio = null, beepTimer = null;
+function beep() {
+  if (!audio) return;
+  const t = audio.currentTime;
+  [0, 0.25, 0.5].forEach(d => {
+    const o = audio.createOscillator(), g = audio.createGain();
+    o.frequency.value = 880; o.type = "square"; g.gain.value = 0.25;
+    o.connect(g).connect(audio.destination); o.start(t + d); o.stop(t + d + 0.15);
+  });
+}
+function checkAlarm(r, now) {
+  for (const b of state.buses) {
+    const leaveIn = (b.at - now) / 60000 - r.walk;
+    if (leaveIn >= -1 && leaveIn <= r.buffer && !alarmed.has(b.vid)) {
+      alarmed.add(b.vid);
+      $("bannerText").textContent = `${r.line.toUpperCase()} arrives ${hm(b.at)} at ${r.boardName}`;
+      $("banner").classList.add("show");
+      clearInterval(beepTimer); beep(); beepTimer = setInterval(beep, 1200);
+      navigator.vibrate?.([400, 200, 400]);
+    }
+  }
+}
+function stopAlarm() { clearInterval(beepTimer); $("banner").classList.remove("show"); }
+
+async function setWatching(on) {
+  watching = on; alarmed = new Set();
+  if (on) {
+    audio ||= new (window.AudioContext || window.webkitAudioContext)(); await audio.resume();  // unlock audio on tap
+    // buses already inside the leave-now window when you switch on don't ring
+    const r = routes[current], now = Date.now();
+    state.buses.forEach(b => { if ((b.at - now) / 60000 - r.walk <= r.buffer) alarmed.add(b.vid); });
+    try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  } else { stopAlarm(); wakeLock?.release(); wakeLock = null; }
+  render();
+}
+document.addEventListener("visibilitychange", async () => {
+  if (document.visibilityState === "visible") { refresh(); if (watching) try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {} }
+});
+
+// ---------- events ----------
+document.body.addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.i !== undefined) { current = +t.dataset.i; localStorage.setItem("current", current); state = { buses:[], status:"", disruptions:[], err:"", fetched:0 }; setWatching(false); refresh(); }
+  else if (t.id === "addBtn") openAdd();
+  else if (t.id === "watchBtn") setWatching(!watching);
+  else if (t.id === "stopAlarm") stopAlarm();
+  else if (t.id === "delRoute" && confirm(`Delete "${routes[current].name}"?`)) { routes.splice(current, 1); current = 0; saveRoutes(); refresh(); render(); }
+  else if (t.dataset.alarm) {
+    const text = `${hm(+t.dataset.alarm)}|🚌 Leave now — ${routes[current].line.toUpperCase()} at ${t.dataset.bus}`;
+    location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(SHORTCUT)}&input=text&text=${encodeURIComponent(text)}`;
+  }
+});
+
+// ---------- add-route dialog ----------
+let lineStops = [];
+function openAdd() { $("fErr").textContent = ""; $("fStops").hidden = true; $("fSave").disabled = true; $("fLine").value = ""; $("dlg").showModal(); }
+$("fCancel").onclick = () => $("dlg").close();
+$("fLoad").onclick = async () => {
+  $("fErr").textContent = "";
+  try { lineStops = (await getJSON(`/Line/${encodeURIComponent($("fLine").value.trim().toLowerCase())}/StopPoints`)).filter(s => !s.naptanId.startsWith("490G")); }
+  catch { $("fErr").textContent = "Couldn't find that bus."; return; }
+  lineStops.sort((a, b) => a.commonName.localeCompare(b.commonName) || (a.stopLetter || "").localeCompare(b.stopLetter || ""));
+  $("fStops").hidden = false; $("fFilter").value = ""; fillBoard();
+  const names = [...new Set(lineStops.map(s => s.commonName))];
+  $("fAlight").innerHTML = `<option value="">— none —</option>` + names.map(n => `<option>${esc(n)}</option>`).join("");
+};
+function fillBoard() {
+  const q = $("fFilter").value.toLowerCase();
+  $("fBoard").innerHTML = lineStops.filter(s => s.commonName.toLowerCase().includes(q))
+    .map(s => `<option value="${s.naptanId}">${esc(s.commonName)} — Stop ${esc(s.stopLetter || s.indicator || "")} → ${esc(towards(s))}</option>`).join("");
+}
+$("fFilter").oninput = fillBoard;
+$("fBoard").onchange = () => {
+  const s = lineStops.find(x => x.naptanId === $("fBoard").value);
+  $("fName").value = `${$("fLine").value.trim().toUpperCase()} from ${s.commonName}`; $("fSave").disabled = false;
+};
+$("fSave").onclick = () => {
+  const s = lineStops.find(x => x.naptanId === $("fBoard").value); if (!s) return;
+  const an = $("fAlight").value;
+  routes.push({ name: $("fName").value.trim() || s.commonName, line: $("fLine").value.trim().toLowerCase(),
+    boardId: s.naptanId, boardName: `${s.commonName} (Stop ${s.stopLetter || s.indicator || ""})`,
+    alightName: an || null, alightIds: an ? lineStops.filter(x => x.commonName === an).map(x => x.naptanId) : [],
+    walk: +$("fWalk").value || 0, buffer: +$("fBuf").value || 0, ready: 5 });
+  current = routes.length - 1; localStorage.setItem("current", current); saveRoutes(); $("dlg").close();
+  state = { buses:[], status:"", disruptions:[], err:"", fetched:0 }; refresh();
+};
+
+render(); refresh();
+setInterval(render, 1000);
+pollTimer = setInterval(refresh, POLL_MS);
+</script>
+</body>
+</html>
