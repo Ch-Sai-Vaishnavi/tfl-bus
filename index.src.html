@@ -146,6 +146,8 @@
   .search input { flex:1; border:0; outline:0; background:none; color:var(--txt); font-size:17px; padding:13px 0; }
   .search svg { width:18px; height:18px; color:var(--faint); flex:none; }
   .lines { display:grid; grid-template-columns:repeat(auto-fill, minmax(64px, 1fr)); gap:8px; }
+  .lgroup { display:flex; justify-content:space-between; font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.04em; margin:18px 4px 8px; }
+  .lgroup:first-child { margin-top:4px; } .lgroup span { color:var(--faint); }
   .lines button { height:44px; border-radius:11px; background:var(--card); box-shadow:var(--shadow); font-weight:700; font-size:16px; }
   .lines button:active { background:var(--brand); color:#fff; }
   .dir { display:block; width:100%; text-align:left; background:var(--card); box-shadow:var(--shadow); border-radius:18px; padding:18px; margin-bottom:12px; }
@@ -515,7 +517,7 @@ function drawWizard() {
   if (w.step === 1) {
     B.innerHTML = `<div class="sh-title">Which bus?</div><p class="sh-sub">Pick your bus number.</p>
       <div class="search">${icon.search}<input id="wq" placeholder="Search, e.g. 135" autocomplete="off" autocapitalize="characters"></div>
-      <div class="lines" id="wLines"><div class="loading">Loading…</div></div>`;
+      <div id="wLines"><div class="loading">Loading…</div></div>`;
     busLines().then(ids => { w.ids = ids; drawLines(); });
     $("wq").oninput = drawLines;
   } else if (w.step === 2) {
@@ -552,10 +554,18 @@ function drawWizard() {
     $("wName").oninput = e => { w.name = e.target.value; };
   }
 }
+function lineGroup(id) {
+  const p = id.replace(/\d.*$/, "").toUpperCase(), n = +(id.match(/\d+/)?.[0] || 0);
+  if (!p) return n < 100 ? "1–99" : `${Math.floor(n / 100) * 100}–${Math.floor(n / 100) * 100 + 99}`;
+  return p === "N" ? "Night buses (N)" : p === "SL" ? "Superloop (SL)" : `${p} routes`;
+}
 function drawLines() {
   const q = ($("wq")?.value || "").trim().toLowerCase();
-  const ids = (w.ids || []).filter(id => !q || id.startsWith(q));
-  $("wLines").innerHTML = ids.slice(0, 240).map(id => `<button data-line="${esc(id)}">${esc(id.toUpperCase())}</button>`).join("")
+  const ids = (w.ids || []).filter(id => !q || id.includes(q));
+  const groups = new Map();
+  for (const id of ids) { const g = lineGroup(id); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(id); }
+  $("wLines").innerHTML = [...groups].map(([g, list]) => `<div class="lgroup">${esc(g)}<span>${list.length}</span></div>
+    <div class="lines">${list.map(id => `<button data-line="${esc(id)}">${esc(id.toUpperCase())}</button>`).join("")}</div>`).join("")
     || `<div class="loading">No bus called “${esc(q)}”</div>`;
 }
 $("wBack").onclick = () => { if (w.step === 1) $("wiz").close(); else { w.step--; drawWizard(); } };
