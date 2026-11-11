@@ -12,10 +12,6 @@
 <link rel="apple-touch-icon" href="apple-touch-icon-180.png">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
   :root {
     --bg:#f4f4f6; --card:#ffffff; --txt:#111113; --dim:#6b6b73; --faint:#a1a1aa; --line:#ececf0; --fill:#f1f1f4;
@@ -61,24 +57,6 @@
   .hero-btn { width:100%; margin-top:16px; padding:13px; border-radius:14px; background:var(--fill); color:var(--blue); font-weight:600; font-size:15px; }
   .hero.empty { text-align:center; padding:30px 24px; }
   .hero.empty .t { font-size:18px; font-weight:600; } .hero.empty .s { font-size:14px; color:var(--dim); margin-top:6px; }
-
-  /* ---------- map ---------- */
-  .map-card { position:relative; height:260px; }
-  #map { position:absolute; inset:0; background:var(--fill); }
-  .map-note { position:absolute; left:10px; bottom:10px; z-index:500; font-size:11px; padding:4px 8px; border-radius:8px;
-              background:color-mix(in srgb, var(--card) 85%, transparent); color:var(--dim); backdrop-filter:blur(6px); }
-  .recenter { position:absolute; right:10px; top:10px; z-index:500; width:36px; height:36px; border-radius:50%; background:var(--card); color:var(--txt); box-shadow:0 2px 8px rgba(0,0,0,.15); font-size:20px; }
-  .tiles { filter:grayscale(1) contrast(.85) brightness(1.06); }
-  @media (prefers-color-scheme: dark) { .tiles { filter:grayscale(1) invert(1) contrast(.82) brightness(.8); } }
-  .leaflet-control-attribution { font-size:9px !important; background:color-mix(in srgb, var(--card) 70%, transparent) !important; color:var(--faint) !important; }
-  .leaflet-control-attribution a { color:var(--faint) !important; }
-  .bm { display:flex; align-items:center; gap:4px; transform:translate(-50%, -50%); white-space:nowrap; width:max-content;
-        background:var(--brand); color:#fff; font:700 12px/1 -apple-system, system-ui, sans-serif; padding:5px 7px; border-radius:9px;
-        box-shadow:0 2px 8px rgba(0,0,0,.25); border:2px solid #fff; }
-  .bm.mine { background:#111; } .bm span { font-weight:600; opacity:.9; }
-  .sm { transform:translate(-50%, -50%); width:26px; height:26px; border-radius:50%; background:var(--blue); color:#fff; border:3px solid #fff;
-        display:grid; place-items:center; font:700 11px/1 -apple-system, system-ui, sans-serif; box-shadow:0 2px 8px rgba(0,0,0,.25); }
-  .sm.off { background:#111; width:22px; height:22px; font-size:11px; }
 
   /* ---------- alarm row ---------- */
   .row { display:flex; align-items:center; gap:14px; padding:16px 18px; }
@@ -198,7 +176,6 @@
   </div>
 
   <div id="hero"></div>
-  <div class="card map-card" id="mapCard"><div id="map"></div><div class="map-note">Bus positions estimated from live TfL arrival times</div><button class="recenter" id="recenter" aria-label="Recenter map">⌖</button></div>
   <div id="alarmRow"></div>
   <div id="list"></div>
   <div class="foot" id="foot"></div>
@@ -260,10 +237,9 @@ async function sequence(line, dir) {   // stops in order + map geometry for one 
   const d = await getJSON(`/Line/${encodeURIComponent(line)}/Route/Sequence/${dir}`);
   const stops = {};
   for (const sps of d.stopPointSequences || []) for (const s of sps.stopPoint)
-    stops[s.id] = { id:s.id, name:s.name, letter:s.stopLetter && !s.stopLetter.startsWith("->") ? s.stopLetter : "", lat:s.lat, lon:s.lon };
+    stops[s.id] = { id:s.id, name:s.name, letter:s.stopLetter && !s.stopLetter.startsWith("->") ? s.stopLetter : "" };
   const orders = (d.orderedLineRoutes || []).map(o => o.naptanIds.filter(id => stops[id])).filter(o => o.length).sort((a, b) => b.length - a.length);
-  const paths = (d.lineStrings || []).flatMap(ls => JSON.parse(ls)).map(seg => seg.map(([lon, lat]) => [lat, lon]));
-  return (seqCache[key] = { stops, orders, paths, from: stops[orders[0]?.[0]]?.name, to: stops[orders[0]?.at(-1)]?.name });
+  return (seqCache[key] = { stops, orders, from: stops[orders[0]?.[0]]?.name, to: stops[orders[0]?.at(-1)]?.name });
 }
 
 // ---------- live data ----------
@@ -294,7 +270,7 @@ async function refresh() {
   } catch {}
   busLines().then(ids => { lineGone = !ids.includes(r.line); });
   fetched = Date.now(); loading = false;
-  drawRoute(); renderAll(); moveBuses(); fitMap();
+  renderAll();
 }
 
 // ---------- helpers ----------
@@ -314,7 +290,6 @@ function renderHeader() {
   $("date").textContent = new Date().toLocaleString("en-GB", { weekday:"long", day:"numeric", month:"short" }) + " · " + new Date().toLocaleTimeString("en-GB");
   $("title").textContent = r ? r.name : "Add a route";
   $("editBtn").style.visibility = r ? "visible" : "hidden";
-  $("mapCard").style.display = r ? "" : "none";
 }
 function renderHero() {
   const r = route(), now = Date.now();
@@ -362,121 +337,16 @@ function renderList() {
   for (const b of buses) {
     const s = stateOf(r, b.at, now), away = stopsAway(b, now), near = nearName(b, now);
     const state = s.cls === "late" ? "Missed" : s.cls === "now" ? "Leave now" : `Leave ${hm(s.leaveAt)}`;
-    h += `<button class="bus ${s.cls}" data-focus="${esc(b.id)}">
+    h += `<div class="bus ${s.cls}">
       <div class="mins num"><b>${s.eta < 1 ? "Due" : Math.floor(s.eta)}</b><i>${s.eta < 1 ? "" : "min"}</i></div>
       <div class="mid"><div class="t num">Arrives ${hm(b.at)}${b.off ? ` <span style="color:var(--dim);font-weight:500">→ ${hm(b.off)}</span>` : ""}</div>
         <div class="s">${away != null ? `${away} stop${away === 1 ? "" : "s"} away` : ""}${near ? ` · near ${esc(near)}` : ""}</div></div>
-      <span class="state">${state}</span></button>`;
+      <span class="state">${state}</span></div>`;
   }
   h += `</div>`;
   $("list").innerHTML = h;
   const good = status === "Good Service";
   $("foot").innerHTML = `${good ? `<span style="color:var(--green)">●</span> Good service on the ${esc(r.line.toUpperCase())} · ` : ""}Live TfL data${fetched ? ` · updated ${Math.round((now - fetched) / 1000)}s ago` : ""}`;
-}
-
-// ---------- map ----------
-let map = null, routeLayer = null, busLayer = null, busMarkers = {}, userMoved = false, drawnKey = "";
-function initMap() {
-  if (map || !window.L) return;
-  map = L.map("map", { zoomControl:false, attributionControl:true }).setView([51.505, -0.02], 13);
-  map.attributionControl.setPrefix(false);
-  // Free OpenStreetMap tiles (no key, no account), muted with CSS so the route stands out
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    { maxZoom:19, className:"tiles", attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
-  routeLayer = L.layerGroup().addTo(map); busLayer = L.layerGroup().addTo(map);
-  ["pointerdown", "wheel", "touchstart"].forEach(ev => map.getContainer().addEventListener(ev, () => { userMoved = true; }, { passive:true }));
-}
-function drawRoute() {
-  const r = route(); initMap(); if (!map || !seq || !r) return;
-  const key = `${r.line}|${r.boardId}|${r.alightId}|${today()}`;
-  if (drawnKey === key) return;
-  drawnKey = key; userMoved = false; routeLayer.clearLayers(); busLayer.clearLayers(); busMarkers = {};
-  const red = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim();
-  seq.paths.forEach(p => L.polyline(p, { color:red, weight:5, opacity:.75, lineCap:"round" }).addTo(routeLayer));
-  const b = seq.stops[r.boardId], a = seq.stops[r.alightId];
-  if (b) L.marker([b.lat, b.lon], { icon:L.divIcon({ className:"", html:`<div class="sm">${esc(r.boardLetter || "●")}</div>` }), zIndexOffset:500 }).addTo(routeLayer);
-  if (a) L.marker([a.lat, a.lon], { icon:L.divIcon({ className:"", html:`<div class="sm off">🏁</div>` }) }).addTo(routeLayer);
-}
-// ---- route geometry: keep estimated bus positions ON the road line ----
-const M_LAT = 110540, mLon = lat => 111320 * Math.cos(lat * Math.PI / 180);
-function prepPaths(sq) {   // cumulative distance along each route line (metres)
-  if (sq.geo) return sq.geo;
-  return (sq.geo = sq.paths.map(pts => {
-    const cum = [0];
-    for (let i = 1; i < pts.length; i++) {
-      const [a1, o1] = pts[i - 1], [a2, o2] = pts[i], k = mLon((a1 + a2) / 2);
-      cum.push(cum[i - 1] + Math.hypot((a2 - a1) * M_LAT, (o2 - o1) * k));
-    }
-    return { pts, cum };
-  }));
-}
-function project(g, lat, lon) {   // nearest point on a route line -> distance along it + how far off it is
-  let best = { err:Infinity, d:0 };
-  const k = mLon(lat);
-  for (let i = 1; i < g.pts.length; i++) {
-    const [a1, o1] = g.pts[i - 1], [a2, o2] = g.pts[i];
-    const ax = (o1 - lon) * k, ay = (a1 - lat) * M_LAT, bx = (o2 - lon) * k, by = (a2 - lat) * M_LAT;
-    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
-    const t = L2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L2)) : 0;
-    const err = Math.hypot(ax + dx * t, ay + dy * t);
-    if (err < best.err) best = { err, d: g.cum[i - 1] + t * (g.cum[i] - g.cum[i - 1]) };
-  }
-  return best;
-}
-function pointAt(g, d) {
-  let i = 1; while (i < g.cum.length - 1 && g.cum[i] < d) i++;
-  const span = g.cum[i] - g.cum[i - 1], t = span ? (d - g.cum[i - 1]) / span : 0;
-  const [a1, o1] = g.pts[i - 1], [a2, o2] = g.pts[i];
-  return [a1 + (a2 - a1) * t, o1 + (o2 - o1) * t];
-}
-function alongRoute(P, N, f) {   // position a fraction f of the way from stop P to stop N, following the road
-  let best = null;
-  for (const g of prepPaths(seq)) {
-    const p = project(g, P.lat, P.lon), n = project(g, N.lat, N.lon);
-    if (n.d < p.d) continue;                                   // wrong way along this line
-    const score = p.err + n.err;
-    if (!best || score < best.score) best = { g, p, n, score };
-  }
-  if (!best || best.score > 120) return null;                  // stops not on any line: fall back
-  return pointAt(best.g, best.p.d + (best.n.d - best.p.d) * f);
-}
-// Estimate where a bus is: between the stop it last passed and the next stop it's predicted at.
-function busPos(b, now) {
-  if (!seq) return null;
-  const ahead = b.preds.filter(p => p.t > now && seq.stops[p.id]);
-  if (!ahead.length) return null;
-  const nxt = ahead[0], after = ahead[1];
-  let prevId = null;
-  for (const o of seq.orders) { const i = o.indexOf(nxt.id); if (i > 0) { prevId = o[i - 1]; break; } }
-  const N = seq.stops[nxt.id], P = prevId && seq.stops[prevId];
-  if (!P) return [N.lat, N.lon];
-  const segMs = Math.min(240000, Math.max(40000, after ? after.t - nxt.t : 90000));
-  const f = Math.max(0, Math.min(1, 1 - (nxt.t - now) / segMs));
-  return alongRoute(P, N, f) || [N.lat, N.lon];
-}
-function moveBuses() {
-  if (!map || !route()) return;
-  const r = route(), now = Date.now(), seen = new Set();
-  const next = live.find(b => b.at > now && stateOf(r, b.at, now).leaveIn >= -1);
-  for (const b of live) {
-    if (b.at < now - MIN) continue;
-    const pos = busPos(b, now); if (!pos) continue;
-    seen.add(b.id);
-    const eta = (b.at - now) / MIN, label = eta < 1 ? "due" : `${Math.floor(eta)}m`;
-    const html = `<div class="bm ${b === next ? "mine" : ""}">${esc(r.line.toUpperCase())}<span>${label}</span></div>`;
-    let m = busMarkers[b.id];
-    if (!m) m = busMarkers[b.id] = L.marker(pos, { icon:L.divIcon({ className:"", html }), zIndexOffset:1000 }).addTo(busLayer);
-    else { m.setLatLng(pos); const el = m.getElement(); if (el && el.innerHTML !== html) el.innerHTML = html; }
-  }
-  for (const id in busMarkers) if (!seen.has(id)) { busLayer.removeLayer(busMarkers[id]); delete busMarkers[id]; }
-}
-function fitMap(force) {
-  if (!map || !seq || (userMoved && !force)) return;
-  const r = route(), pts = [];
-  const b = seq.stops[r.boardId]; if (b) pts.push([b.lat, b.lon]);
-  Object.values(busMarkers).forEach(m => pts.push(m.getLatLng()));
-  if (pts.length === 1) { map.setView(pts[0], 15); return; }
-  if (pts.length) map.fitBounds(pts, { padding:[36, 36], maxZoom:16 });
 }
 
 // ---------- in-app alarm ----------
@@ -516,7 +386,7 @@ document.addEventListener("visibilitychange", async () => {
 });
 
 function switchTo(i) {
-  current = i; save(); live = []; seq = null; status = null; disruptions = []; err = ""; loading = true; drawnKey = "";
+  current = i; save(); live = []; seq = null; status = null; disruptions = []; err = ""; loading = true;
   setWatching(false); renderAll(); refresh();
 }
 
@@ -665,7 +535,6 @@ document.addEventListener("click", e => {
     o[k] = Math.max(0, Math.min(90, o[k] + +t.dataset.d)); t.parentElement.querySelector("b").textContent = `${o[k]} min`;
   }
   else if (t.id === "switcher") openRoutes();
-  else if (t.id === "recenter") { userMoved = false; fitMap(true); }
   else if (t.id === "addBtn") openWizard();
   else if (t.dataset.tab !== undefined) { $("routesDlg").close(); switchTo(+t.dataset.tab); }
   else if (t.id === "editBtn") openEdit();
@@ -673,7 +542,6 @@ document.addEventListener("click", e => {
   else if (t.id === "watchBtn") setWatching(!watching);
   else if (t.id === "stopAlarm") stopAlarm();
   else if (t.dataset.close !== undefined) t.closest("dialog").close();
-  else if (t.dataset.focus) { const m = busMarkers[t.dataset.focus]; if (m) { userMoved = true; map.setView(m.getLatLng(), 16, { animate:true }); $("mapCard").scrollIntoView({ behavior:"smooth", block:"center" }); } }
   else if (t.dataset.alarm) openAlarm(+t.dataset.alarm, t.dataset.bus);
   else if (t.id === "runShortcut") runShortcut();
   else if (t.id === "showGuide") { $("guide").hidden = false; t.hidden = true; $("guide").scrollIntoView({ behavior:"smooth" }); }
@@ -685,8 +553,8 @@ document.addEventListener("toggle", e => { if (e.target.classList?.contains("not
 document.querySelectorAll("dialog").forEach(d => d.addEventListener("click", e => { if (e.target === d) d.close(); }));
 
 // ---------- go ----------
-initMap(); renderAll(); refresh(); busLines();
-setInterval(() => { renderAll(); moveBuses(); checkAlarm(); }, 1000);
+renderAll(); refresh(); busLines();
+setInterval(() => { renderAll(); checkAlarm(); }, 1000);
 setInterval(refresh, POLL_MS);
 </script>
 </body>
