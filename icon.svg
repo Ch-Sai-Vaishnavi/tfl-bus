@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ff6b5e"/><stop offset="1" stop-color="#e0261b"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#e9f5ff"/><stop offset="1" stop-color="#bfe0ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- soft shadow -->
+  <ellipse cx="256" cy="432" rx="150" ry="18" fill="#000" opacity=".14"/>
+  <!-- mirrors -->
+  <rect x="96" y="176" width="22" height="58" rx="11" fill="#fff"/>
+  <rect x="394" y="176" width="22" height="58" rx="11" fill="#fff"/>
+  <!-- wheels -->
+  <rect x="148" y="372" width="52" height="56" rx="18" fill="#2b2b33"/>
+  <rect x="312" y="372" width="52" height="56" rx="18" fill="#2b2b33"/>
+  <!-- body -->
+  <rect x="116" y="96" width="280" height="300" rx="60" fill="#fff"/>
+  <!-- route sign -->
+  <rect x="196" y="116" width="120" height="30" rx="15" fill="#ffd23f"/>
+  <!-- windscreen -->
+  <rect x="142" y="162" width="228" height="126" rx="34" fill="url(#glass)"/>
+  <!-- eyes -->
+  <circle cx="210" cy="220" r="22" fill="#2b2b33"/>
+  <circle cx="302" cy="220" r="22" fill="#2b2b33"/>
+  <circle cx="218" cy="211" r="8" fill="#fff"/>
+  <circle cx="310" cy="211" r="8" fill="#fff"/>
+  <!-- smile -->
+  <path d="M236 252 q20 18 40 0" fill="none" stroke="#2b2b33" stroke-width="9" stroke-linecap="round"/>
+  <!-- blush -->
+  <ellipse cx="172" cy="256" rx="16" ry="10" fill="#ff8fa3" opacity=".75"/>
+  <ellipse cx="340" cy="256" rx="16" ry="10" fill="#ff8fa3" opacity=".75"/>
+  <!-- headlights -->
+  <circle cx="170" cy="338" r="20" fill="#ffd23f"/>
+  <circle cx="342" cy="338" r="20" fill="#ffd23f"/>
+  <!-- grille -->
+  <rect x="222" y="326" width="68" height="10" rx="5" fill="#e6e6ec"/>
+  <rect x="222" y="344" width="68" height="10" rx="5" fill="#e6e6ec"/>
+</svg>

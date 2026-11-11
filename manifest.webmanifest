@@ -1,0 +1,13 @@
+{
+  "name": "Bus",
+  "short_name": "Bus",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f4f6",
+  "theme_color": "#e0261b",
+  "icons": [
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "apple-touch-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
