@@ -179,7 +179,7 @@
   .pick .ck { color:var(--blue); font-weight:700; }
   .bigtime { text-align:center; font-size:56px; font-weight:700; letter-spacing:-.04em; margin:8px 0 0; }
   .guide { background:var(--card); border-radius:18px; box-shadow:var(--shadow); padding:6px 16px; margin-top:12px; }
-  .guide ol { margin:8px 0; padding-left:20px; } .guide li { margin:9px 0; font-size:15px; } .guide code { background:var(--fill); padding:1px 6px; border-radius:6px; font-size:14px; }
+  .guide ol { margin:8px 0; padding-left:20px; } .guide li { margin:9px 0; font-size:15px; } .guide code { white-space:nowrap; background:var(--fill); padding:1px 6px; border-radius:6px; font-size:14px; }
   .loading { text-align:center; color:var(--dim); padding:30px; }
 </style>
 </head>
@@ -594,19 +594,18 @@ function openAlarm(at, bus) {
   $("alarmBody").innerHTML = `
     <div class="bigtime num">${hm(at)}</div>
     <p class="sh-sub" style="text-align:center">Leave at this time to catch the ${esc(route().line.toUpperCase())} at ${esc(bus)}</p>
-    ${ready ? `<button class="primary" id="runShortcut">⏰ Set alarm for ${hm(at)}</button>`
-            : `<button class="primary" id="openClock">Open Clock app</button>
-               <p class="sh-sub" style="text-align:center;font-size:13px;margin-top:8px">Add an alarm for <b>${hm(at)}</b> in Clock.</p>
-               <button class="ghost" id="showGuide">Make this one tap (2-minute setup, once)</button>
-               <div class="guide" id="guide" hidden><ol>
-                 <li>Open the <b>Shortcuts</b> app, tap <b>＋</b>.</li>
-                 <li>Tap the name at the top → rename to <code>${SHORTCUT}</code>.</li>
-                 <li>Add action <b>Get Dates from Input</b> — it uses <b>Shortcut Input</b>.</li>
-                 <li>Add action <b>Create Alarm</b> — set the time to <b>Dates</b>, label <code>Leave for the bus</code>.</li>
-                 <li>Tap <b>Done</b>, come back here.</li>
-               </ol><button class="primary" id="guideDone" style="margin-bottom:10px">I've made it — set alarm</button></div>`}
-    <button class="ghost" id="useInApp">Use the in-app alarm instead</button>
-    ${ready ? `<button class="ghost" style="color:var(--dim);font-size:13px" onclick="localStorage.removeItem('shortcutReady');openAlarm(${at}, '${esc(bus)}')">Shortcut not working? Show setup again</button>` : ""}`;
+    ${ready ? `<button class="primary" id="runShortcut">⏰ Set iPhone alarm for ${hm(at)}</button>
+               <button class="ghost" style="color:var(--dim);font-size:13px" id="showGuide">Not working? Show setup steps</button>`
+            : `<button class="primary" id="showGuide">Set up iPhone alarms (once, ~2 min)</button>
+               <p class="sh-sub" style="text-align:center;font-size:13px;margin-top:8px">Apple doesn't let websites set alarms directly, so a small Shortcut does it for you.</p>`}
+    <div class="guide" id="guide" hidden><ol>
+      <li>Open the <b>Shortcuts</b> app and tap <b>＋</b> (top right).</li>
+      <li>Tap the name at the top → <b>Rename</b> → type <code>${SHORTCUT}</code> exactly.</li>
+      <li>Tap <b>Add Action</b>, search <b>Get Dates from Input</b> and tap it. It should read “Get dates from <b>Shortcut Input</b>”.</li>
+      <li>Search and add <b>Create Alarm</b> (Clock). Tap its time → <b>Select Variable</b> → <b>Dates</b>. Set the label to <code>Leave for the bus</code>.</li>
+      <li>Tap <b>Done</b>. Come back here and tap the button below. The first time, tap <b>Open</b> and <b>Allow</b> when asked.</li>
+    </ol><button class="primary" id="guideDone" style="margin-bottom:10px">I've made it — set alarm for ${hm(at)}</button></div>
+    <button class="ghost" id="useInApp">Use the in-app alarm instead</button>`;
   if (!$("alarmDlg").open) $("alarmDlg").showModal();
 }
 function runShortcut() {
@@ -632,8 +631,7 @@ document.addEventListener("click", e => {
   else if (t.dataset.focus) { const m = busMarkers[t.dataset.focus]; if (m) { userMoved = true; map.setView(m.getLatLng(), 16, { animate:true }); $("mapCard").scrollIntoView({ behavior:"smooth", block:"center" }); } }
   else if (t.dataset.alarm) openAlarm(+t.dataset.alarm, t.dataset.bus);
   else if (t.id === "runShortcut") runShortcut();
-  else if (t.id === "openClock") location.href = "clock-alarm://";
-  else if (t.id === "showGuide") { $("guide").hidden = false; t.hidden = true; }
+  else if (t.id === "showGuide") { $("guide").hidden = false; t.hidden = true; $("guide").scrollIntoView({ behavior:"smooth" }); }
   else if (t.id === "guideDone") { localStorage.setItem("shortcutReady", "1"); runShortcut(); }
   else if (t.id === "useInApp") { $("alarmDlg").close(); if (!watching) setWatching(true); }
 });
