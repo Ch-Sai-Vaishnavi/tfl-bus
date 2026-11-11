@@ -395,6 +395,49 @@ function drawRoute() {
   if (b) L.marker([b.lat, b.lon], { icon:L.divIcon({ className:"", html:`<div class="sm">${esc(r.boardLetter || "●")}</div>` }), zIndexOffset:500 }).addTo(routeLayer);
   if (a) L.marker([a.lat, a.lon], { icon:L.divIcon({ className:"", html:`<div class="sm off">🏁</div>` }) }).addTo(routeLayer);
 }
+// ---- route geometry: keep estimated bus positions ON the road line ----
+const M_LAT = 110540, mLon = lat => 111320 * Math.cos(lat * Math.PI / 180);
+function prepPaths(sq) {   // cumulative distance along each route line (metres)
+  if (sq.geo) return sq.geo;
+  return (sq.geo = sq.paths.map(pts => {
+    const cum = [0];
+    for (let i = 1; i < pts.length; i++) {
+      const [a1, o1] = pts[i - 1], [a2, o2] = pts[i], k = mLon((a1 + a2) / 2);
+      cum.push(cum[i - 1] + Math.hypot((a2 - a1) * M_LAT, (o2 - o1) * k));
+    }
+    return { pts, cum };
+  }));
+}
+function project(g, lat, lon) {   // nearest point on a route line -> distance along it + how far off it is
+  let best = { err:Infinity, d:0 };
+  const k = mLon(lat);
+  for (let i = 1; i < g.pts.length; i++) {
+    const [a1, o1] = g.pts[i - 1], [a2, o2] = g.pts[i];
+    const ax = (o1 - lon) * k, ay = (a1 - lat) * M_LAT, bx = (o2 - lon) * k, by = (a2 - lat) * M_LAT;
+    const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+    const t = L2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L2)) : 0;
+    const err = Math.hypot(ax + dx * t, ay + dy * t);
+    if (err < best.err) best = { err, d: g.cum[i - 1] + t * (g.cum[i] - g.cum[i - 1]) };
+  }
+  return best;
+}
+function pointAt(g, d) {
+  let i = 1; while (i < g.cum.length - 1 && g.cum[i] < d) i++;
+  const span = g.cum[i] - g.cum[i - 1], t = span ? (d - g.cum[i - 1]) / span : 0;
+  const [a1, o1] = g.pts[i - 1], [a2, o2] = g.pts[i];
+  return [a1 + (a2 - a1) * t, o1 + (o2 - o1) * t];
+}
+function alongRoute(P, N, f) {   // position a fraction f of the way from stop P to stop N, following the road
+  let best = null;
+  for (const g of prepPaths(seq)) {
+    const p = project(g, P.lat, P.lon), n = project(g, N.lat, N.lon);
+    if (n.d < p.d) continue;                                   // wrong way along this line
+    const score = p.err + n.err;
+    if (!best || score < best.score) best = { g, p, n, score };
+  }
+  if (!best || best.score > 120) return null;                  // stops not on any line: fall back
+  return pointAt(best.g, best.p.d + (best.n.d - best.p.d) * f);
+}
 // Estimate where a bus is: between the stop it last passed and the next stop it's predicted at.
 function busPos(b, now) {
   if (!seq) return null;
@@ -407,7 +450,7 @@ function busPos(b, now) {
   if (!P) return [N.lat, N.lon];
   const segMs = Math.min(240000, Math.max(40000, after ? after.t - nxt.t : 90000));
   const f = Math.max(0, Math.min(1, 1 - (nxt.t - now) / segMs));
-  return [P.lat + (N.lat - P.lat) * f, P.lon + (N.lon - P.lon) * f];
+  return alongRoute(P, N, f) || [N.lat, N.lon];
 }
 function moveBuses() {
   if (!map || !route()) return;
