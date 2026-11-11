@@ -6,359 +6,448 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Bus">
-<meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f4f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
 <title>Bus</title>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%23e1251b'/%3E%3Ctext x='90' y='122' font-size='100' text-anchor='middle'%3E🚌%3C/text%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
   :root {
-    --bg:#f2f2f7; --card:#fff; --txt:#1c1c1e; --dim:#6e6e73; --faint:#aeaeb2; --line:#e5e5ea; --fill:#f2f2f7;
-    --red:#ff3b30; --amber:#ff9500; --green:#34c759; --blue:#007aff; --brand:#e1251b;
-    --radius:18px; --shadow:0 1px 2px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.04);
+    --bg:#f4f4f6; --card:#ffffff; --txt:#111113; --dim:#6b6b73; --faint:#a1a1aa; --line:#ececf0; --fill:#f1f1f4;
+    --red:#ff3b30; --amber:#ff9500; --green:#28c76f; --blue:#0a84ff; --brand:#e1251b;
+    --shadow:0 1px 1px rgba(16,16,24,.03), 0 8px 24px rgba(16,16,24,.06);
+    --r:22px;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#000; --card:#1c1c1e; --txt:#f5f5f7; --dim:#98989f; --faint:#636366; --line:#2c2c2e; --fill:#2c2c2e; --shadow:none; }
+    :root { --bg:#0a0a0b; --card:#17171a; --txt:#f4f4f5; --dim:#9a9aa3; --faint:#5c5c66; --line:#26262b; --fill:#222227;
+            --shadow:0 0 0 1px rgba(255,255,255,.04); }
   }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html { background:var(--bg); }
-  body { margin:0; color:var(--txt); font:16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  body { margin:0; color:var(--txt); font:16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
          -webkit-font-smoothing:antialiased; }
-  .app { max-width:480px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 28px); }
-  button { font:inherit; color:inherit; cursor:pointer; }
+  button { font:inherit; color:inherit; cursor:pointer; border:0; background:none; padding:0; }
   .num { font-variant-numeric:tabular-nums; }
+  .app { max-width:460px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 36px); }
 
-  /* header */
-  .top { display:flex; align-items:flex-end; justify-content:space-between; margin:8px 2px 14px; }
-  .eyebrow { font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.04em; }
-  h1 { font-size:30px; line-height:1.15; margin:2px 0 0; font-weight:700; letter-spacing:-.02em; }
-  .icon-btn { width:38px; height:38px; border-radius:50%; border:0; background:var(--card); box-shadow:var(--shadow);
-              display:grid; place-items:center; font-size:18px; }
+  /* ---------- header ---------- */
+  .top { display:flex; align-items:center; justify-content:space-between; margin:6px 2px 18px; }
+  .date { font-size:13px; color:var(--dim); font-weight:500; }
+  .switcher { display:flex; align-items:center; gap:6px; font-size:28px; font-weight:700; letter-spacing:-.025em; margin-top:2px; }
+  .switcher .chev { font-size:15px; color:var(--faint); transform:translateY(2px); }
+  .round { width:40px; height:40px; border-radius:50%; background:var(--card); box-shadow:var(--shadow); display:grid; place-items:center; color:var(--dim); }
+  .round svg { width:20px; height:20px; }
 
-  /* route tabs */
-  .tabs { display:flex; gap:8px; overflow-x:auto; margin:0 -16px 14px; padding:0 16px; scrollbar-width:none; }
-  .tabs::-webkit-scrollbar { display:none; }
-  .tab { flex:none; border:0; border-radius:999px; padding:8px 14px; font-size:15px; font-weight:500;
-         background:var(--card); box-shadow:var(--shadow); color:var(--txt); }
-  .tab.on { background:var(--txt); color:var(--bg); }
-  .tab.add { color:var(--blue); }
+  .card { background:var(--card); border-radius:var(--r); box-shadow:var(--shadow); margin-bottom:14px; overflow:hidden; }
 
-  /* cards */
-  .card { background:var(--card); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:12px; }
-  .pad { padding:16px; }
-  .section-title { font-size:13px; font-weight:600; color:var(--dim); text-transform:uppercase; letter-spacing:.04em; margin:22px 4px 8px;
-                   display:flex; justify-content:space-between; }
+  /* ---------- hero ---------- */
+  .hero { padding:20px 20px 18px; }
+  .hero-top { display:flex; align-items:center; gap:10px; }
+  .badge { flex:none; height:28px; min-width:44px; padding:0 9px; border-radius:7px; background:var(--brand); color:#fff;
+           font-weight:700; font-size:15px; display:grid; place-items:center; letter-spacing:-.01em; }
+  .hero-route { min-width:0; font-size:14px; color:var(--dim); line-height:1.3; }
+  .hero-route b { color:var(--txt); font-weight:600; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .hero-label { margin-top:20px; font-size:15px; font-weight:600; color:var(--dim); }
+  .hero-big { font-size:64px; font-weight:700; letter-spacing:-.045em; line-height:1; margin-top:4px; }
+  .hero-big small { font-size:24px; letter-spacing:-.01em; font-weight:600; margin-left:4px; }
+  .hero.ok .hero-big { color:var(--green); } .hero.ready .hero-big { color:var(--amber); } .hero.now .hero-big { color:var(--red); }
+  .facts { display:grid; grid-template-columns:repeat(3, 1fr); margin-top:18px; border-top:1px solid var(--line); padding-top:14px; }
+  .fact .k { font-size:12px; color:var(--dim); } .fact .v { font-size:17px; font-weight:600; margin-top:1px; }
+  .hero-btn { width:100%; margin-top:16px; padding:13px; border-radius:14px; background:var(--fill); color:var(--blue); font-weight:600; font-size:15px; }
+  .hero.empty { text-align:center; padding:30px 24px; }
+  .hero.empty .t { font-size:18px; font-weight:600; } .hero.empty .s { font-size:14px; color:var(--dim); margin-top:6px; }
 
-  /* journey summary */
-  .journey { display:flex; gap:12px; align-items:center; }
-  .badge { flex:none; min-width:48px; height:32px; padding:0 10px; border-radius:8px; background:var(--brand); color:#fff;
-           display:grid; place-items:center; font-weight:700; font-size:17px; letter-spacing:-.01em; }
-  .stops { min-width:0; }
-  .stops .from { font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .stops .to { color:var(--dim); font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .chips { display:flex; flex-wrap:wrap; gap:6px; margin-top:12px; }
-  .chip { font-size:13px; padding:4px 10px; border-radius:999px; background:var(--fill); color:var(--dim); }
-  .chip.good { color:var(--green); } .chip.bad { color:var(--red); }
-  .disruption { margin-top:10px; font-size:14px; color:var(--red); }
+  /* ---------- map ---------- */
+  .map-card { position:relative; height:260px; }
+  #map { position:absolute; inset:0; background:var(--fill); }
+  .map-note { position:absolute; left:10px; bottom:10px; z-index:500; font-size:11px; padding:4px 8px; border-radius:8px;
+              background:color-mix(in srgb, var(--card) 85%, transparent); color:var(--dim); backdrop-filter:blur(6px); }
+  .recenter { position:absolute; right:10px; top:10px; z-index:500; width:36px; height:36px; border-radius:50%; background:var(--card); color:var(--txt); box-shadow:0 2px 8px rgba(0,0,0,.15); font-size:20px; }
+  .tiles { filter:grayscale(1) contrast(.85) brightness(1.06); }
+  @media (prefers-color-scheme: dark) { .tiles { filter:grayscale(1) invert(1) contrast(.82) brightness(.8); } }
+  .leaflet-control-attribution { font-size:9px !important; background:color-mix(in srgb, var(--card) 70%, transparent) !important; color:var(--faint) !important; }
+  .leaflet-control-attribution a { color:var(--faint) !important; }
+  .bm { display:flex; align-items:center; gap:4px; transform:translate(-50%, -50%); white-space:nowrap; width:max-content;
+        background:var(--brand); color:#fff; font:700 12px/1 -apple-system, system-ui, sans-serif; padding:5px 7px; border-radius:9px;
+        box-shadow:0 2px 8px rgba(0,0,0,.25); border:2px solid #fff; }
+  .bm.mine { background:#111; } .bm span { font-weight:600; opacity:.9; }
+  .sm { transform:translate(-50%, -50%); width:26px; height:26px; border-radius:50%; background:var(--blue); color:#fff; border:3px solid #fff;
+        display:grid; place-items:center; font:700 11px/1 -apple-system, system-ui, sans-serif; box-shadow:0 2px 8px rgba(0,0,0,.25); }
+  .sm.off { background:#111; width:22px; height:22px; font-size:11px; }
 
-  /* hero */
-  .hero { padding:20px 18px; text-align:center; }
-  .hero .label { font-size:15px; color:var(--dim); font-weight:500; }
-  .hero .big { font-size:56px; font-weight:700; letter-spacing:-.03em; line-height:1.05; margin:4px 0 6px; }
-  .hero .detail { color:var(--dim); font-size:15px; }
-  .hero.now .big { color:var(--red); } .hero.ready .big { color:var(--amber); } .hero.ok .big { color:var(--green); }
-  .bar { height:6px; border-radius:3px; background:var(--fill); overflow:hidden; margin:16px 0 4px; }
-  .bar > i { display:block; height:100%; border-radius:3px; background:currentColor; transition:width 1s linear; }
-  .hero.now .bar { color:var(--red); } .hero.ready .bar { color:var(--amber); } .hero.ok .bar { color:var(--green); }
-  .hero .actions { margin-top:14px; }
-  .pill-btn { border:0; border-radius:999px; padding:10px 18px; font-size:15px; font-weight:600; background:var(--fill); color:var(--blue); }
-
-  /* alarm switch */
-  .row-switch { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 16px; }
-  .row-switch .t { font-weight:600; } .row-switch .s { font-size:13px; color:var(--dim); }
-  .switch { position:relative; flex:none; width:51px; height:31px; border-radius:999px; border:0; background:var(--line); transition:background .2s; }
+  /* ---------- alarm row ---------- */
+  .row { display:flex; align-items:center; gap:14px; padding:16px 18px; }
+  .row .ic { width:36px; height:36px; border-radius:10px; display:grid; place-items:center; background:var(--fill); font-size:18px; flex:none; }
+  .row .tx { flex:1; min-width:0; } .row .t { font-weight:600; } .row .s { font-size:13px; color:var(--dim); }
+  .switch { position:relative; flex:none; width:51px; height:31px; border-radius:999px; background:var(--line); transition:background .2s; }
   .switch::after { content:""; position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%; background:#fff;
-                   box-shadow:0 2px 4px rgba(0,0,0,.2); transition:transform .2s; }
+                   box-shadow:0 2px 5px rgba(0,0,0,.2); transition:transform .2s; }
   .switch.on { background:var(--green); } .switch.on::after { transform:translateX(20px); }
 
-  /* list */
-  .list > .item { display:grid; grid-template-columns:1fr auto; gap:2px 12px; align-items:center; padding:13px 16px; }
-  .list > .item + .item { border-top:1px solid var(--line); }
-  .item .when { font-size:19px; font-weight:600; display:flex; align-items:center; gap:8px; }
-  .item .sub { font-size:13px; color:var(--dim); grid-column:1; }
-  .item .right { grid-row:1 / 3; grid-column:2; display:flex; align-items:center; gap:8px; }
-  .mins { min-width:64px; text-align:center; padding:6px 10px; border-radius:10px; font-weight:700; font-size:15px; background:var(--fill); }
-  .item.now .mins { background:var(--red); color:#fff; }
-  .item.ready .mins { background:var(--amber); color:#fff; }
-  .item.ok .mins { background:color-mix(in srgb, var(--green) 16%, transparent); color:var(--green); }
-  .item.late { opacity:.4; }
-  .item.sched .when { color:var(--dim); }
-  .live { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 0 0 rgba(52,199,89,.6); animation:pulse 2s infinite; }
-  @keyframes pulse { 70% { box-shadow:0 0 0 6px rgba(52,199,89,0); } 100% { box-shadow:0 0 0 0 rgba(52,199,89,0); } }
-  .tag { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--faint); }
-  .clock-btn { width:36px; height:36px; border-radius:50%; border:0; background:var(--fill); font-size:16px; }
-  .empty { padding:22px 16px; text-align:center; color:var(--dim); }
-  .foot { text-align:center; font-size:12px; color:var(--faint); margin-top:16px; }
-  .err { color:var(--red); }
+  /* ---------- list ---------- */
+  .head { display:flex; align-items:baseline; justify-content:space-between; margin:24px 4px 10px; }
+  .head h2 { font-size:20px; margin:0; letter-spacing:-.015em; }
+  .head span { font-size:13px; color:var(--dim); display:flex; align-items:center; gap:6px; }
+  .dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
+  @keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(40,199,111,.55); } 70%,100% { box-shadow:0 0 0 7px rgba(40,199,111,0); } }
+  .bus { display:flex; align-items:center; gap:14px; padding:14px 18px; width:100%; text-align:left; }
+  .bus + .bus { border-top:1px solid var(--line); }
+  .mins { flex:none; width:58px; text-align:center; }
+  .mins b { display:block; font-size:26px; font-weight:700; letter-spacing:-.03em; line-height:1; }
+  .mins i { font-style:normal; font-size:11px; color:var(--dim); font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
+  .bus .mid { flex:1; min-width:0; }
+  .bus .t { font-weight:600; } .bus .s { font-size:13px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .state { flex:none; font-size:12px; font-weight:700; padding:6px 10px; border-radius:999px; }
+  .ok .state { color:var(--green); background:color-mix(in srgb, var(--green) 14%, transparent); }
+  .ready .state { color:var(--amber); background:color-mix(in srgb, var(--amber) 16%, transparent); }
+  .now .state { color:#fff; background:var(--red); }
+  .late { opacity:.42; } .late .state { color:var(--dim); background:var(--fill); }
+  .ok .mins b { color:var(--green); } .ready .mins b { color:var(--amber); } .now .mins b { color:var(--red); }
+  .list-empty { padding:26px 20px; text-align:center; color:var(--dim); font-size:14px; }
+  .foot { text-align:center; font-size:12px; color:var(--faint); margin-top:18px; line-height:1.6; }
+  .notice summary { list-style:none; display:flex; align-items:center; gap:12px; padding:14px 18px; cursor:pointer; }
+  .notice summary::-webkit-details-marker { display:none; }
+  .notice .ndot { width:10px; height:10px; border-radius:50%; background:var(--amber); flex:none; }
+  .notice .tx { flex:1; display:flex; flex-direction:column; } .notice .tx span { font-size:13px; color:var(--dim); }
+  .notice .chev { color:var(--faint); font-size:22px; transition:transform .2s; } .notice[open] .chev { transform:rotate(90deg); }
+  .notice p { margin:0; padding:0 18px 14px 40px; font-size:14px; color:var(--dim); }
+  .head { margin-top:24px; }
+  .warn { padding:14px 18px; color:var(--red); font-size:14px; }
 
-  /* alarm overlay */
-  .banner { position:fixed; inset:0; z-index:20; display:none; flex-direction:column; align-items:center; justify-content:center;
-            gap:10px; padding:30px; text-align:center; color:#fff; background:var(--red); animation:flash 1s infinite; }
+  /* ---------- alarm overlay ---------- */
+  .banner { position:fixed; inset:0; z-index:2000; display:none; flex-direction:column; align-items:center; justify-content:center;
+            gap:8px; padding:30px; text-align:center; color:#fff; background:var(--red); animation:flash 1s infinite; }
   .banner.show { display:flex; }
-  .banner h2 { font-size:46px; margin:0; letter-spacing:-.02em; } .banner p { font-size:19px; margin:0 0 26px; opacity:.95; }
-  .banner button { border:0; border-radius:16px; padding:18px 44px; font-size:20px; font-weight:700; background:#fff; color:#000; }
-  @keyframes flash { 50% { background:#c4161c; } }
+  .banner .e { font-size:64px; } .banner h3 { font-size:44px; margin:0; letter-spacing:-.03em; } .banner p { font-size:18px; margin:0 0 28px; opacity:.92; }
+  .banner button { padding:18px 48px; border-radius:18px; font-size:19px; font-weight:700; background:#fff; color:#000; }
+  @keyframes flash { 50% { background:#c8161d; } }
 
-  /* sheets */
-  dialog { border:0; padding:0; background:var(--bg); color:var(--txt); width:min(100vw, 480px); max-height:92vh;
-           border-radius:20px; margin:auto; }
-  dialog::backdrop { background:rgba(0,0,0,.35); }
-  .sheet-head { display:flex; justify-content:space-between; align-items:center; padding:16px 16px 4px; }
-  .sheet-head h3 { margin:0; font-size:18px; }
-  .link { border:0; background:none; color:var(--blue); font-size:16px; padding:6px; }
-  .link.strong { font-weight:600; } .link:disabled { color:var(--faint); }
-  .form { padding:8px 16px 18px; }
-  .field { background:var(--card); border-radius:12px; margin-top:12px; overflow:hidden; }
-  .field label { display:block; font-size:12px; color:var(--dim); padding:10px 14px 0; }
-  .field input, .field select { width:100%; border:0; outline:0; background:transparent; color:var(--txt); font-size:17px; padding:4px 14px 10px; }
-  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .picker { max-height:220px; overflow:auto; }
-  .opt { display:block; width:100%; text-align:left; border:0; background:none; padding:11px 14px; border-top:1px solid var(--line); }
-  .opt .a { font-weight:500; } .opt .b { font-size:13px; color:var(--dim); }
-  .opt.sel { background:color-mix(in srgb, var(--blue) 12%, transparent); }
-  .danger { width:100%; margin-top:18px; border:0; border-radius:12px; padding:14px; background:var(--card); color:var(--red); font-weight:600; }
-  .hint { font-size:13px; color:var(--dim); padding:6px 4px 0; }
+  /* ---------- sheets ---------- */
+  dialog { border:0; padding:0; color:var(--txt); background:var(--bg); width:100%; max-width:460px; height:min(92dvh, 780px); max-height:none;
+           border-radius:24px 24px 0 0; margin:auto auto 0; overflow:hidden; }
+  dialog.small { height:fit-content; max-height:92dvh; }
+  .sh-head button:focus { outline:none; }
+  dialog[open] { display:flex; flex-direction:column; animation:up .28s cubic-bezier(.2,.8,.2,1); }
+  @media (min-width:600px) { dialog { border-radius:24px; margin:auto; } }
+  @keyframes up { from { transform:translateY(40px); opacity:0; } }
+  dialog::backdrop { background:rgba(0,0,0,.38); backdrop-filter:blur(2px); }
+  .sh-head { display:flex; align-items:center; justify-content:space-between; padding:14px 14px 0; min-height:52px; }
+  .sh-head .l, .sh-head .r { min-width:72px; } .sh-head .r { text-align:right; }
+  .txt-btn { color:var(--blue); font-size:16px; padding:8px; } .txt-btn.b { font-weight:600; }
+  .steps { display:flex; gap:5px; justify-content:center; }
+  .steps i { width:22px; height:4px; border-radius:2px; background:var(--line); } .steps i.on { background:var(--txt); }
+  .sh-body { flex:1; overflow:auto; padding:8px 18px 24px; }
+  .sh-title { font-size:26px; font-weight:700; letter-spacing:-.025em; margin:10px 0 4px; }
+  .sh-sub { color:var(--dim); font-size:15px; margin:0 0 16px; }
+  .search { display:flex; align-items:center; gap:8px; background:var(--card); border-radius:14px; padding:0 14px; box-shadow:var(--shadow); margin-bottom:14px; }
+  .search input { flex:1; border:0; outline:0; background:none; color:var(--txt); font-size:17px; padding:13px 0; }
+  .search svg { width:18px; height:18px; color:var(--faint); flex:none; }
+  .lines { display:grid; grid-template-columns:repeat(auto-fill, minmax(64px, 1fr)); gap:8px; }
+  .lines button { height:44px; border-radius:11px; background:var(--card); box-shadow:var(--shadow); font-weight:700; font-size:16px; }
+  .lines button:active { background:var(--brand); color:#fff; }
+  .dir { display:block; width:100%; text-align:left; background:var(--card); box-shadow:var(--shadow); border-radius:18px; padding:18px; margin-bottom:12px; }
+  .dir .k { font-size:13px; color:var(--dim); } .dir .v { font-size:20px; font-weight:700; letter-spacing:-.015em; margin:2px 0 6px; }
+  .dir .s { font-size:13px; color:var(--dim); }
+  .tl { background:var(--card); border-radius:18px; box-shadow:var(--shadow); padding:6px 0; }
+  .tl button { display:flex; align-items:center; gap:14px; width:100%; text-align:left; padding:10px 16px; position:relative; }
+  .tl button::before { content:""; position:absolute; left:27px; top:0; bottom:0; width:3px; background:color-mix(in srgb, var(--brand) 30%, transparent); }
+  .tl button:first-child::before { top:50%; } .tl button:last-child::before { bottom:50%; }
+  .tl .pt { position:relative; z-index:1; width:25px; height:25px; flex:none; border-radius:50%; background:var(--card); border:3px solid var(--brand);
+            display:grid; place-items:center; font-size:9px; font-weight:800; color:var(--brand); }
+  .tl .nm { font-weight:500; } .tl .tw { font-size:12px; color:var(--dim); }
+  .tl button:active { background:var(--fill); }
+  .stepper { display:flex; align-items:center; justify-content:space-between; background:var(--card); border-radius:18px; box-shadow:var(--shadow); padding:14px 16px; margin-bottom:12px; }
+  .stepper .k { font-weight:600; } .stepper .s { font-size:13px; color:var(--dim); }
+  .stepper .ctl { display:flex; align-items:center; gap:14px; }
+  .stepper .ctl button { width:36px; height:36px; border-radius:50%; background:var(--fill); font-size:20px; font-weight:600; color:var(--blue); }
+  .stepper .ctl b { min-width:48px; text-align:center; font-size:20px; }
+  .field { background:var(--card); border-radius:18px; box-shadow:var(--shadow); padding:10px 16px; margin-bottom:12px; }
+  .field label { font-size:12px; color:var(--dim); display:block; }
+  .field input { width:100%; border:0; outline:0; background:none; color:var(--txt); font-size:17px; padding:4px 0 2px; }
+  .primary { width:100%; padding:16px; border-radius:16px; background:var(--txt); color:var(--bg); font-weight:700; font-size:17px; margin-top:8px; }
+  .primary:disabled { opacity:.35; }
+  .ghost { width:100%; padding:14px; border-radius:16px; color:var(--blue); font-weight:600; margin-top:6px; }
+  .danger { width:100%; padding:15px; border-radius:16px; background:var(--card); box-shadow:var(--shadow); color:var(--red); font-weight:600; margin-top:12px; }
+  .pick { display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:14px 16px; }
+  .pick + .pick { border-top:1px solid var(--line); }
+  .pick .tx { flex:1; min-width:0; } .pick .t { font-weight:600; } .pick .s { font-size:13px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pick .ck { color:var(--blue); font-weight:700; }
+  .bigtime { text-align:center; font-size:56px; font-weight:700; letter-spacing:-.04em; margin:8px 0 0; }
+  .guide { background:var(--card); border-radius:18px; box-shadow:var(--shadow); padding:6px 16px; margin-top:12px; }
+  .guide ol { margin:8px 0; padding-left:20px; } .guide li { margin:9px 0; font-size:15px; } .guide code { background:var(--fill); padding:1px 6px; border-radius:6px; font-size:14px; }
+  .loading { text-align:center; color:var(--dim); padding:30px; }
 </style>
 </head>
 <body>
 <main class="app">
   <div class="top">
-    <div><div class="eyebrow num" id="clock"></div><h1 id="title">Bus</h1></div>
-    <button class="icon-btn" id="editBtn" aria-label="Route settings">⚙︎</button>
+    <div>
+      <div class="date num" id="date"></div>
+      <button class="switcher" id="switcher"><span id="title">Bus</span><span class="chev">▼</span></button>
+    </div>
+    <button class="round" id="editBtn" aria-label="Route settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </button>
   </div>
-  <div class="tabs" id="tabs"></div>
-  <div id="content"></div>
+
+  <div id="hero"></div>
+  <div class="card map-card" id="mapCard"><div id="map"></div><div class="map-note">Bus positions estimated from live TfL arrival times</div><button class="recenter" id="recenter" aria-label="Recenter map">⌖</button></div>
+  <div id="alarmRow"></div>
+  <div id="list"></div>
   <div class="foot" id="foot"></div>
 </main>
 
-<div class="banner" id="banner"><h2>Leave now</h2><p id="bannerText"></p><button id="stopAlarm">Stop alarm</button></div>
+<div class="banner" id="banner"><div class="e">🏃</div><h3>Leave now</h3><p id="bannerText"></p><button id="stopAlarm">Stop alarm</button></div>
 
-<!-- add route -->
-<dialog id="addDlg">
-  <div class="sheet-head"><button class="link" data-close>Cancel</button><h3>New route</h3><button class="link strong" id="aSave" disabled>Save</button></div>
-  <div class="form">
-    <div class="field"><label>Bus number</label><input id="aLine" placeholder="e.g. 135" autocapitalize="off" autocomplete="off" enterkeyhint="search"></div>
-    <p class="hint err" id="aErr"></p>
-    <div id="aMore" hidden>
-      <div class="field"><label>Boarding stop — the letter shows the direction</label><input id="aFilter" placeholder="Search stops on this route"><div class="picker" id="aBoard"></div></div>
-      <div class="field"><label>Getting off at (optional)</label><select id="aAlight"></select></div>
-      <div class="grid2">
-        <div class="field"><label>Walk to stop (min)</label><input id="aWalk" type="number" inputmode="numeric" value="10"></div>
-        <div class="field"><label>Spare time (min)</label><input id="aBuf" type="number" inputmode="numeric" value="1"></div>
-      </div>
-      <div class="field"><label>Route name</label><input id="aName"></div>
-    </div>
-  </div>
-</dialog>
-
-<!-- edit route -->
-<dialog id="editDlg">
-  <div class="sheet-head"><button class="link" data-close>Cancel</button><h3>Route settings</h3><button class="link strong" id="eSave">Done</button></div>
-  <div class="form">
-    <div class="field"><label>Route name</label><input id="eName"></div>
-    <div class="grid2">
-      <div class="field"><label>Walk to stop (min)</label><input id="eWalk" type="number" inputmode="numeric"></div>
-      <div class="field"><label>Spare time (min)</label><input id="eBuf" type="number" inputmode="numeric"></div>
-    </div>
-    <p class="hint">The alarm goes off when the bus is walk + spare minutes away.</p>
-    <button class="danger" id="eDelete">Delete route</button>
-  </div>
-</dialog>
+<dialog id="wiz"><div class="sh-head"><div class="l"><button class="txt-btn" id="wBack">Cancel</button></div><div class="steps" id="wSteps"></div><div class="r"></div></div><div class="sh-body" id="wBody"></div></dialog>
+<dialog id="routesDlg" class="small"><div class="sh-head"><div class="l"></div><b>Your routes</b><div class="r"><button class="txt-btn b" data-close>Done</button></div></div><div class="sh-body" id="routesBody"></div></dialog>
+<dialog id="alarmDlg" class="small"><div class="sh-head"><div class="l"></div><b>Phone alarm</b><div class="r"><button class="txt-btn b" data-close>Close</button></div></div><div class="sh-body" id="alarmBody"></div></dialog>
+<dialog id="editDlg" class="small"><div class="sh-head"><div class="l"><button class="txt-btn" data-close>Cancel</button></div><b>Route settings</b><div class="r"><button class="txt-btn b" id="eSave">Save</button></div></div><div class="sh-body" id="editBody"></div></dialog>
 
 <script>
+"use strict";
 const API = "https://api.tfl.gov.uk";
-const SHORTCUT = "Bus Alarm";          // iPhone Shortcut that creates a Clock alarm
+const SHORTCUT = "Bus Alarm";            // iPhone Shortcut that creates a Clock alarm
 const POLL_MS = 30000;
-const SCHED_AHEAD_MIN = 90;            // show timetable buses this far ahead
-const DEFAULT_ROUTES = [{ name:"135 to work", line:"135", boardId:"490016668K", boardStop:"Canary Wharf Station", boardLetter:"K",
-  alightName:"Shoreditch High Street Station", alightIds:["490005910S","490005524E"], walk:15, buffer:1, ready:5, direction:"outbound" }];
+// All London bus routes (snapshot). Refreshed from TfL once a day so new/withdrawn routes are picked up.
+const BUILTIN_LINES = "1 2 3 4 5 6 7 8 9 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31 32 33 34 35 36 37 38 39 40 41 42 43 44 45 46 47 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 83 85 86 87 88 89 90 91 92 93 94 95 96 97 98 99 100 101 102 103 104 105 106 107 108 109 110 111 112 113 114 115 116 117 119 120 121 122 123 124 125 126 127 128 129 130 131 132 133 134 135 136 137 138 139 140 141 142 143 144 145 146 147 148 149 150 151 152 153 154 155 156 157 158 159 160 161 162 163 164 165 166 167 169 170 171 172 173 174 175 176 177 178 179 180 181 182 183 184 185 186 187 188 189 190 191 192 193 194 195 196 197 198 199 200 201 202 203 204 205 206 207 208 209 210 211 212 213 214 215 216 217 218 219 220 221 222 223 224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 240 241 242 243 244 245 246 247 248 249 250 251 252 253 254 255 256 257 258 259 260 261 262 263 264 265 266 267 268 269 270 272 273 274 275 276 277 278 279 280 281 282 284 285 286 287 288 289 290 291 292 293 294 295 296 297 298 299 300 301 302 303 304 306 307 308 309 310 312 313 314 315 316 317 318 319 320 321 322 323 324 325 326 327 328 329 330 331 333 335 336 337 339 340 341 343 344 345 346 350 352 353 354 355 356 357 358 359 360 362 363 364 365 366 367 368 370 371 372 375 376 377 378 379 380 381 382 383 384 385 386 388 389 390 393 394 395 396 397 398 399 401 403 404 405 406 407 410 411 412 413 415 417 418 419 422 423 424 425 427 428 430 432 433 434 436 439 440 444 450 452 453 456 460 462 463 464 465 466 467 468 469 470 473 474 476 481 482 483 484 485 486 487 488 490 491 492 493 496 498 499 601 602 603 606 608 612 613 616 617 618 621 624 625 626 627 628 629 631 632 633 634 635 638 639 640 642 643 645 646 649 650 651 652 653 655 656 657 658 660 661 662 663 664 665 667 669 670 671 672 674 675 677 678 679 681 683 684 685 686 688 689 690 695 696 697 698 699 969 a10 b11 b12 b13 b14 b15 b16 bl1 c1 c3 c10 c11 d3 d6 d7 d8 e1 e2 e3 e5 e6 e7 e8 e9 e10 e11 el1 el2 el3 g1 h2 h3 h9 h10 h11 h12 h13 h14 h17 h18 h19 h20 h22 h25 h26 h28 h32 h37 h91 h98 k1 k2 k3 k4 k5 n1 n2 n3 n5 n7 n8 n9 n11 n15 n18 n19 n20 n21 n22 n25 n26 n27 n28 n29 n31 n32 n33 n38 n41 n44 n53 n55 n63 n65 n68 n72 n73 n74 n83 n86 n87 n89 n91 n97 n98 n109 n113 n118 n133 n136 n137 n140 n155 n171 n199 n205 n207 n242 n250 n253 n263 n266 n277 n279 n343 n381 n472 n550 n551 p4 p5 p12 p13 r1 r2 r3 r4 r5 r7 r8 r9 r10 r11 r68 r70 s1 s2 s3 s4 scs sl1 sl2 sl3 sl4 sl5 sl6 sl7 sl8 sl9 sl10 sl11 sl12 u1 u2 u3 u4 u5 u7 u9 u10 w3 w4 w5 w6 w7 w8 w9 w11 w12 w13 w14 w15 w16 w19".split(" ");
+const DEFAULT_ROUTES = [{ name:"135 to work", line:"135", direction:"outbound", boardId:"490016668K", boardStop:"Canary Wharf Station",
+  boardLetter:"K", alightId:"490005524E", alightName:"Shoreditch High Street Station", walk:15, buffer:1, ready:5 }];
+const MIN = 60000;
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const hm = t => new Date(t).toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
-const towards = s => (s.additionalProperties || []).find(p => p.key === "Towards")?.value || "";
-const getJSON = async path => { const r = await fetch(API + path); if (!r.ok) throw new Error(`TfL error ${r.status}`); return r.json(); };
-const MIN = 60000;
+const today = () => new Date().toDateString();
+const getJSON = async path => { const r = await fetch(API + path); if (!r.ok) throw new Error(r.status); return r.json(); };
+const icon = { search:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>` };
 
+// ---------- persistent state ----------
 let routes = JSON.parse(localStorage.getItem("routes") || "null") || DEFAULT_ROUTES;
+routes.forEach(r => {   // upgrade routes saved by older versions
+  if (!r.boardStop && r.boardName) { const m = r.boardName.match(/^(.*) \(Stop (.*)\)$/); r.boardStop = m ? m[1] : r.boardName; r.boardLetter = m ? m[2] : ""; }
+  if (!r.alightId && r.alightIds?.length) r.alightId = r.alightIds.find(id => id === "490005524E") || r.alightIds[0];
+  r.ready ??= 5;
+});
 let current = Math.min(+localStorage.getItem("current") || 0, Math.max(routes.length - 1, 0));
-let live = [], sched = [], status = null, disruptions = [], err = "", fetched = 0, loading = true;
-let watching = false, alarmed = new Set(), wakeLock = null;
-const ttCache = {};
-const saveRoutes = () => localStorage.setItem("routes", JSON.stringify(routes));
+const save = () => { localStorage.setItem("routes", JSON.stringify(routes)); localStorage.setItem("current", current); };
+save();
 const route = () => routes[current];
 
-// ---------- data ----------
-async function refresh() {
-  const r = route(); if (!r) { render(); return; }
+// ---------- daily-refreshed reference data ----------
+async function busLines() {
+  const c = JSON.parse(localStorage.getItem("lines") || "null");
+  if (c?.date === today()) return c.ids;
   try {
-    const arr = (await getJSON(`/StopPoint/${r.boardId}/Arrivals`))
-      .filter(a => a.lineId === r.line).sort((a, b) => Date.parse(a.expectedArrival) - Date.parse(b.expectedArrival));
-    if (arr[0] && r.direction !== arr[0].direction) { r.direction = arr[0].direction; saveRoutes(); }
+    const nat = s => [s.replace(/\d+/g, ""), +(s.match(/\d+/)?.[0] || 0), s];
+    const ids = (await getJSON("/Line/Mode/bus")).map(l => l.id)
+      .sort((a, b) => { const x = nat(a), y = nat(b); return x[0].localeCompare(y[0]) || x[1] - y[1] || x[2].localeCompare(y[2]); });
+    localStorage.setItem("lines", JSON.stringify({ date: today(), ids }));
+    return ids;
+  } catch { return c?.ids || BUILTIN_LINES; }
+}
+const seqCache = {};
+async function sequence(line, dir) {   // stops in order + map geometry for one direction (cached per day)
+  const key = `${line}|${dir}|${today()}`;
+  if (seqCache[key]) return seqCache[key];
+  const d = await getJSON(`/Line/${encodeURIComponent(line)}/Route/Sequence/${dir}`);
+  const stops = {};
+  for (const sps of d.stopPointSequences || []) for (const s of sps.stopPoint)
+    stops[s.id] = { id:s.id, name:s.name, letter:s.stopLetter && !s.stopLetter.startsWith("->") ? s.stopLetter : "", lat:s.lat, lon:s.lon };
+  const orders = (d.orderedLineRoutes || []).map(o => o.naptanIds.filter(id => stops[id])).filter(o => o.length).sort((a, b) => b.length - a.length);
+  const paths = (d.lineStrings || []).flatMap(ls => JSON.parse(ls)).map(seg => seg.map(([lon, lat]) => [lat, lon]));
+  return (seqCache[key] = { stops, orders, paths, from: stops[orders[0]?.[0]]?.name, to: stops[orders[0]?.at(-1)]?.name });
+}
+
+// ---------- live data ----------
+let openNotice = false;
+let live = [], status = null, disruptions = [], err = "", fetched = 0, loading = true, seq = null, lineGone = false;
+async function refresh() {
+  const r = route(); if (!r) return renderAll();
+  try {
+    const arr = (await getJSON(`/StopPoint/${r.boardId}/Arrivals`)).filter(a => a.lineId === r.line)
+      .sort((a, b) => Date.parse(a.expectedArrival) - Date.parse(b.expectedArrival));
     const trips = {};
     if (arr.length) try {
       for (const p of await getJSON(`/Vehicle/${arr.map(a => a.vehicleId).join(",")}/Arrivals`))
-        if (p.lineId === r.line) (trips[p.vehicleId] ||= []).push(p);
+        if (p.lineId === r.line) (trips[p.vehicleId] ||= []).push({ id:p.naptanId, name:p.stationName, t:Date.parse(p.expectedArrival) });
     } catch {}
     live = arr.map(a => {
       const at = Date.parse(a.expectedArrival);
-      const stops = (trips[a.vehicleId] || []).sort((x, y) => Date.parse(x.expectedArrival) - Date.parse(y.expectedArrival));
-      const off = stops.find(p => (r.alightIds || []).includes(p.naptanId) && Date.parse(p.expectedArrival) > at);
-      return { id:a.vehicleId, live:true, at, near: stops[0]?.stationName || a.currentLocation || "",
-               stopsAway: stops.length ? stops.filter(p => Date.parse(p.expectedArrival) < at).length : null,
-               off: off ? Date.parse(off.expectedArrival) : null };
+      const preds = (trips[a.vehicleId] || []).sort((x, y) => x.t - y.t);
+      return { id:a.vehicleId, at, preds, off: preds.find(p => p.id === r.alightId && p.t > at)?.t ?? null };
     });
     err = "";
-  } catch (e) { err = "Can't reach TfL — retrying"; }
-  try { sched = await timetable(r); } catch { sched = []; }
+  } catch { err = "Can't reach TfL right now — retrying…"; }
+  try { seq = await sequence(r.line, r.direction || "outbound"); } catch {}
   try {
     const ls = (await getJSON(`/Line/${r.line}/Status`))[0].lineStatuses;
-    status = ls.map(s => s.statusSeverityDescription).join(", ");
-    disruptions = ls.filter(s => s.reason).map(s => s.reason);
+    status = [...new Set(ls.map(s => s.statusSeverityDescription))].join(", ");
+    disruptions = [...new Set(ls.filter(s => s.reason).map(s => s.reason.trim()))];
   } catch {}
+  busLines().then(ids => { lineGone = !ids.includes(r.line); });
   fetched = Date.now(); loading = false;
-  render();
+  drawRoute(); renderAll(); moveBuses(); fitMap();
 }
 
-// Scheduled departures from the TfL timetable (fills the gap beyond the ~30 min live horizon)
-async function timetable(r) {
-  const key = `${r.line}|${r.boardId}|${new Date().toDateString()}`;
-  if (!ttCache[key]) {
-    const dirs = r.direction ? [r.direction, r.direction === "outbound" ? "inbound" : "outbound"] : ["outbound", "inbound"];
-    for (const d of dirs) {
-      try {
-        const t = await getJSON(`/Line/${r.line}/Timetable/${r.boardId}?direction=${d}`);
-        if (t.timetable?.routes?.[0]?.schedules?.length) { ttCache[key] = t.timetable.routes[0].schedules; break; }
-      } catch {}
-    }
-    ttCache[key] ||= [];
-  }
-  const now = new Date(), base = new Date(now); base.setHours(0, 0, 0, 0);
-  if (now.getHours() < 4) base.setDate(base.getDate() - 1);   // after midnight still belongs to yesterday's service
-  const dow = base.getDay();
-  const pick = ttCache[key].find(s => dow === 0 ? /sunday/i.test(s.name) : dow === 6 ? /saturday/i.test(s.name) : /monday|weekday/i.test(s.name))
-            || ttCache[key][0];
-  return (pick?.knownJourneys || []).map(j => ({ live:false, id:`s${j.hour}:${j.minute}`, at: base.getTime() + (+j.hour * 60 + +j.minute) * MIN }));
-}
-
-function upcoming(now) {
-  const lastLive = live.length ? live[live.length - 1].at : now;
-  const extra = sched.filter(s => s.at > lastLive + 2 * MIN && s.at > now && s.at < now + SCHED_AHEAD_MIN * MIN);
-  return [...live.filter(b => b.at > now - MIN), ...extra].slice(0, 8);
-}
-
-function stateOf(r, b, now) {
-  const eta = (b.at - now) / MIN, leaveIn = eta - r.walk;
+// ---------- helpers ----------
+function stateOf(r, at, now) {
+  const eta = (at - now) / MIN, leaveIn = eta - r.walk;
   const cls = leaveIn < -1 ? "late" : leaveIn <= r.buffer ? "now" : leaveIn <= r.buffer + r.ready ? "ready" : "ok";
-  return { eta, leaveIn, cls, leaveAt: b.at - r.walk * MIN };
+  return { eta, leaveIn, cls, leaveAt: at - r.walk * MIN };
 }
+const stopsAway = (b, now) => b.preds.length ? b.preds.filter(p => p.t > now && p.t < b.at).length : null;
+const nearName = (b, now) => b.preds.find(p => p.t > now)?.name || "";
 const mmss = m => { const s = Math.max(0, Math.round(m * 60)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
 // ---------- render ----------
-function render() {
-  const now = Date.now(), r = route();
-  $("clock").textContent = new Date(now).toLocaleString("en-GB", { weekday:"short", hour:"2-digit", minute:"2-digit", second:"2-digit" });
-  $("title").textContent = r ? r.name : "Bus";
-  $("tabs").innerHTML = routes.map((x, i) => `<button class="tab ${i === current ? "on" : ""}" data-tab="${i}">${esc(x.name)}</button>`).join("")
-    + `<button class="tab add" id="addBtn">＋ New route</button>`;
-  $("editBtn").hidden = !r;
-  if (!r) { $("content").innerHTML = `<div class="card empty">No saved routes yet. Tap <b>＋ New route</b>.</div>`; $("foot").textContent = ""; return; }
-
-  const list = upcoming(now);
-  const next = list.find(b => stateOf(r, b, now).leaveIn >= -1);
-
-  // journey card
+function renderAll() { renderHeader(); renderHero(); renderAlarm(); renderList(); }
+function renderHeader() {
+  const r = route();
+  $("date").textContent = new Date().toLocaleString("en-GB", { weekday:"long", day:"numeric", month:"short" }) + " · " + new Date().toLocaleTimeString("en-GB");
+  $("title").textContent = r ? r.name : "Add a route";
+  $("editBtn").style.visibility = r ? "visible" : "hidden";
+  $("mapCard").style.display = r ? "" : "none";
+}
+function renderHero() {
+  const r = route(), now = Date.now();
+  if (!r) { $("hero").innerHTML = `<div class="card hero empty"><div class="t">No routes yet</div><div class="s">Tap the title to add your first route.</div></div>`; return; }
+  const head = `<div class="hero-top"><div class="badge">${esc(r.line.toUpperCase())}</div>
+    <div class="hero-route"><b>${esc(r.boardStop)}${r.boardLetter ? ` · Stop ${esc(r.boardLetter)}` : ""}</b>${r.alightName ? `to ${esc(r.alightName)}` : `towards ${esc(seq?.to || "")}`}</div></div>`;
+  const next = live.find(b => b.at > now && stateOf(r, b.at, now).leaveIn >= -1);
+  if (loading) { $("hero").innerHTML = `<div class="card hero">${head}<div class="hero-label">Getting live times…</div></div>`; return; }
+  if (!next) {
+    $("hero").innerHTML = `<div class="card hero">${head}<div class="hero-label">No bus you can catch yet</div>
+      <div class="s" style="font-size:14px;color:var(--dim);margin-top:6px">TfL only shows buses about 30 minutes ahead. The next one will appear here as soon as it's tracked.</div></div>`;
+    return;
+  }
+  const s = stateOf(r, next.at, now);
+  const label = s.cls === "now" ? "Time to go" : "Leave in";
+  const big = s.cls === "now" ? "Now" : s.leaveIn < 60 ? mmss(s.leaveIn) : `${Math.floor(s.leaveIn)}<small>min</small>`;
+  $("hero").innerHTML = `<div class="card hero ${s.cls}">${head}
+    <div class="hero-label">${label}</div><div class="hero-big num">${big}</div>
+    <div class="facts">
+      <div class="fact"><div class="k">Leave by</div><div class="v num">${hm(s.leaveAt)}</div></div>
+      <div class="fact"><div class="k">Bus at stop</div><div class="v num">${hm(next.at)}</div></div>
+      <div class="fact"><div class="k">${r.alightName ? "You arrive" : "Stops away"}</div><div class="v num">${r.alightName ? (next.off ? hm(next.off) : "—") : (stopsAway(next, now) ?? "—")}</div></div>
+    </div>
+    ${s.leaveIn > 0 ? `<button class="hero-btn" data-alarm="${s.leaveAt}" data-bus="${hm(next.at)}">⏰ Phone alarm for ${hm(s.leaveAt)}</button>` : ""}
+  </div>`;
+}
+function renderAlarm() {
+  if (!route()) { $("alarmRow").innerHTML = ""; return; }
+  $("alarmRow").innerHTML = `<div class="card row"><div class="ic">🔔</div>
+    <div class="tx"><div class="t">Leave-now alarm</div><div class="s">${watching ? "On · keep this screen open" : "Off · rings here when it's time to go"}</div></div>
+    <button class="switch ${watching ? "on" : ""}" id="watchBtn" role="switch" aria-checked="${watching}" aria-label="Leave-now alarm"></button></div>`;
+}
+function renderList() {
+  const r = route(), now = Date.now();
+  if (!r) { $("list").innerHTML = ""; $("foot").textContent = ""; return; }
+  const buses = live.filter(b => b.at > now - MIN);
+  let h = "";
+  if (status && status !== "Good Service") h += `<details class="card notice" ${openNotice ? "open" : ""}><summary><span class="ndot"></span><span class="tx"><b>${esc(status)}</b>
+      <span>${disruptions.length} update${disruptions.length === 1 ? "" : "s"} from TfL</span></span><span class="chev">›</span></summary>
+      ${disruptions.map(d => `<p>${esc(d)}</p>`).join("")}</details>`;
+  h += `<div class="head"><h2>Live buses</h2><span>${buses.length ? `<i class="dot"></i>${buses.length} tracked` : ""}</span></div><div class="card">`;
+  if (lineGone) h += `<div class="warn">⚠︎ TfL no longer lists route ${esc(r.line.toUpperCase())}. It may have been withdrawn.</div>`;
+  if (err) h += `<div class="warn">${esc(err)}</div>`;
+  else if (!buses.length) h += `<div class="list-empty">${loading ? "Loading…" : `No ${esc(r.line.toUpperCase())} buses tracked in the next ~30 minutes.`}</div>`;
+  for (const b of buses) {
+    const s = stateOf(r, b.at, now), away = stopsAway(b, now), near = nearName(b, now);
+    const state = s.cls === "late" ? "Missed" : s.cls === "now" ? "Leave now" : `Leave ${hm(s.leaveAt)}`;
+    h += `<button class="bus ${s.cls}" data-focus="${esc(b.id)}">
+      <div class="mins num"><b>${s.eta < 1 ? "Due" : Math.floor(s.eta)}</b><i>${s.eta < 1 ? "" : "min"}</i></div>
+      <div class="mid"><div class="t num">Arrives ${hm(b.at)}${b.off ? ` <span style="color:var(--dim);font-weight:500">→ ${hm(b.off)}</span>` : ""}</div>
+        <div class="s">${away != null ? `${away} stop${away === 1 ? "" : "s"} away` : ""}${near ? ` · near ${esc(near)}` : ""}</div></div>
+      <span class="state">${state}</span></button>`;
+  }
+  h += `</div>`;
+  $("list").innerHTML = h;
   const good = status === "Good Service";
-  let html = `<div class="card pad">
-    <div class="journey"><div class="badge">${esc(r.line.toUpperCase())}</div>
-      <div class="stops"><div class="from">${esc(r.boardStop)} · Stop ${esc(r.boardLetter)}</div>
-      <div class="to">${r.alightName ? `to ${esc(r.alightName)}` : "Any destination"}</div></div></div>
-    <div class="chips"><span class="chip">🚶 ${r.walk} min walk</span><span class="chip">+${r.buffer} min spare</span>
-      ${status ? `<span class="chip ${good ? "good" : "bad"}">● ${esc(status)}</span>` : ""}</div>
-    ${disruptions.map(d => `<div class="disruption">⚠︎ ${esc(d)}</div>`).join("")}
-  </div>`;
+  $("foot").innerHTML = `${good ? `<span style="color:var(--green)">●</span> Good service on the ${esc(r.line.toUpperCase())} · ` : ""}Live TfL data${fetched ? ` · updated ${Math.round((now - fetched) / 1000)}s ago` : ""}`;
+}
 
-  // hero
-  if (loading) html += `<div class="card hero"><div class="label">Loading live times…</div></div>`;
-  else if (!next) html += `<div class="card hero"><div class="label">No more buses you can catch soon</div><div class="detail">Check back later</div></div>`;
-  else {
-    const s = stateOf(r, next, now);
-    const label = s.cls === "now" ? "Time to go" : "Leave in";
-    const big = s.cls === "now" ? "Leave now" : mmss(s.leaveIn);
-    const pct = Math.max(0, Math.min(100, 100 - (s.leaveIn / 30) * 100));
-    html += `<div class="card hero ${s.cls}">
-      <div class="label">${label}${next.live ? "" : " · timetable"}</div>
-      <div class="big num">${big}</div>
-      <div class="detail">Leave by <b>${hm(s.leaveAt)}</b> · bus at ${hm(next.at)}${next.off ? ` · arrive ${hm(next.off)}` : ""}</div>
-      <div class="bar"><i style="width:${pct}%"></i></div>
-      ${s.leaveIn > 0 ? `<div class="actions"><button class="pill-btn" data-alarm="${s.leaveAt}" data-bus="${hm(next.at)}">⏰ Set iPhone alarm for ${hm(s.leaveAt)}</button></div>` : ""}
-    </div>`;
+// ---------- map ----------
+let map = null, routeLayer = null, busLayer = null, busMarkers = {}, userMoved = false, drawnKey = "";
+function initMap() {
+  if (map || !window.L) return;
+  map = L.map("map", { zoomControl:false, attributionControl:true }).setView([51.505, -0.02], 13);
+  map.attributionControl.setPrefix(false);
+  // Free OpenStreetMap tiles (no key, no account), muted with CSS so the route stands out
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    { maxZoom:19, className:"tiles", attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(map);
+  routeLayer = L.layerGroup().addTo(map); busLayer = L.layerGroup().addTo(map);
+  ["pointerdown", "wheel", "touchstart"].forEach(ev => map.getContainer().addEventListener(ev, () => { userMoved = true; }, { passive:true }));
+}
+function drawRoute() {
+  const r = route(); initMap(); if (!map || !seq || !r) return;
+  const key = `${r.line}|${r.boardId}|${r.alightId}|${today()}`;
+  if (drawnKey === key) return;
+  drawnKey = key; userMoved = false; routeLayer.clearLayers(); busLayer.clearLayers(); busMarkers = {};
+  const red = getComputedStyle(document.documentElement).getPropertyValue("--brand").trim();
+  seq.paths.forEach(p => L.polyline(p, { color:red, weight:5, opacity:.75, lineCap:"round" }).addTo(routeLayer));
+  const b = seq.stops[r.boardId], a = seq.stops[r.alightId];
+  if (b) L.marker([b.lat, b.lon], { icon:L.divIcon({ className:"", html:`<div class="sm">${esc(r.boardLetter || "●")}</div>` }), zIndexOffset:500 }).addTo(routeLayer);
+  if (a) L.marker([a.lat, a.lon], { icon:L.divIcon({ className:"", html:`<div class="sm off">🏁</div>` }) }).addTo(routeLayer);
+}
+// Estimate where a bus is: between the stop it last passed and the next stop it's predicted at.
+function busPos(b, now) {
+  if (!seq) return null;
+  const ahead = b.preds.filter(p => p.t > now && seq.stops[p.id]);
+  if (!ahead.length) return null;
+  const nxt = ahead[0], after = ahead[1];
+  let prevId = null;
+  for (const o of seq.orders) { const i = o.indexOf(nxt.id); if (i > 0) { prevId = o[i - 1]; break; } }
+  const N = seq.stops[nxt.id], P = prevId && seq.stops[prevId];
+  if (!P) return [N.lat, N.lon];
+  const segMs = Math.min(240000, Math.max(40000, after ? after.t - nxt.t : 90000));
+  const f = Math.max(0, Math.min(1, 1 - (nxt.t - now) / segMs));
+  return [P.lat + (N.lat - P.lat) * f, P.lon + (N.lon - P.lon) * f];
+}
+function moveBuses() {
+  if (!map || !route()) return;
+  const r = route(), now = Date.now(), seen = new Set();
+  const next = live.find(b => b.at > now && stateOf(r, b.at, now).leaveIn >= -1);
+  for (const b of live) {
+    if (b.at < now - MIN) continue;
+    const pos = busPos(b, now); if (!pos) continue;
+    seen.add(b.id);
+    const eta = (b.at - now) / MIN, label = eta < 1 ? "due" : `${Math.floor(eta)}m`;
+    const html = `<div class="bm ${b === next ? "mine" : ""}">${esc(r.line.toUpperCase())}<span>${label}</span></div>`;
+    let m = busMarkers[b.id];
+    if (!m) m = busMarkers[b.id] = L.marker(pos, { icon:L.divIcon({ className:"", html }), zIndexOffset:1000 }).addTo(busLayer);
+    else { m.setLatLng(pos); const el = m.getElement(); if (el && el.innerHTML !== html) el.innerHTML = html; }
   }
-
-  // alarm switch
-  html += `<div class="card row-switch">
-    <div><div class="t">Leave-now alarm</div><div class="s">${watching ? "On — keep this screen open" : "Rings in the app when it's time to leave"}</div></div>
-    <button class="switch ${watching ? "on" : ""}" id="watchBtn" role="switch" aria-checked="${watching}" aria-label="Leave-now alarm"></button>
-  </div>`;
-
-  // list
-  html += `<div class="section-title"><span>Upcoming buses</span><span>${list.filter(b => b.live).length} live</span></div><div class="card list">`;
-  if (err) html += `<div class="empty err">${esc(err)}</div>`;
-  else if (!list.length && !loading) html += `<div class="empty">No ${esc(r.line.toUpperCase())} buses in the next ${SCHED_AHEAD_MIN} min</div>`;
-  let prev = null;
-  for (const b of list) {
-    const s = stateOf(r, b, now);
-    const mins = s.eta < 1 ? "Due" : `${Math.floor(s.eta)} min`;
-    const bits = [s.cls === "late" ? "Too late to walk" : `Leave by ${hm(s.leaveAt)}`];
-    if (b.live) {
-      if (b.stopsAway != null) bits.push(`${b.stopsAway} stop${b.stopsAway === 1 ? "" : "s"} away`);
-      if (b.near) bits.push(`near ${esc(b.near)}`);
-      if (b.off) bits.push(`arrive ${hm(b.off)}`);
-    }
-    if (prev) bits.push(`+${Math.round((b.at - prev) / MIN)} min gap`);
-    prev = b.at;
-    html += `<div class="item ${s.cls} ${b.live ? "" : "sched"}">
-      <div class="when num">${b.live ? `<span class="live" title="Live"></span>` : ""}${hm(b.at)}${b.live ? "" : `<span class="tag">Timetable</span>`}</div>
-      <div class="right"><span class="mins num">${mins}</span>
-        ${s.leaveIn > 0 ? `<button class="clock-btn" aria-label="Set iPhone alarm" data-alarm="${s.leaveAt}" data-bus="${hm(b.at)}">⏰</button>` : ""}</div>
-      <div class="sub">${bits.join(" · ")}</div>
-    </div>`;
-  }
-  html += `</div>`;
-  $("content").innerHTML = html;
-  $("foot").textContent = fetched ? `Live TfL data · updated ${Math.round((now - fetched) / 1000)}s ago` : "";
-
-  if (watching) checkAlarm(r, now);
+  for (const id in busMarkers) if (!seen.has(id)) { busLayer.removeLayer(busMarkers[id]); delete busMarkers[id]; }
+}
+function fitMap(force) {
+  if (!map || !seq || (userMoved && !force)) return;
+  const r = route(), pts = [];
+  const b = seq.stops[r.boardId]; if (b) pts.push([b.lat, b.lon]);
+  Object.values(busMarkers).forEach(m => pts.push(m.getLatLng()));
+  if (pts.length === 1) { map.setView(pts[0], 15); return; }
+  if (pts.length) map.fitBounds(pts, { padding:[36, 36], maxZoom:16 });
 }
 
 // ---------- in-app alarm ----------
-let audio = null, beepTimer = null;
+let watching = false, alarmed = new Set(), wakeLock = null, audio = null, beepTimer = null;
 function beep() {
   if (!audio) return;
   const t = audio.currentTime;
-  [0, .22, .44].forEach(d => {
-    const o = audio.createOscillator(), g = audio.createGain();
-    o.type = "square"; o.frequency.value = 880; g.gain.value = .22;
-    o.connect(g).connect(audio.destination); o.start(t + d); o.stop(t + d + .14);
-  });
+  [0, .2, .4].forEach(d => { const o = audio.createOscillator(), g = audio.createGain();
+    o.type = "square"; o.frequency.value = 880; g.gain.value = .22; o.connect(g).connect(audio.destination); o.start(t + d); o.stop(t + d + .13); });
 }
-function checkAlarm(r, now) {
+function checkAlarm() {
+  const r = route(), now = Date.now(); if (!watching || !r) return;
   for (const b of live) {
-    const { leaveIn } = stateOf(r, b, now);
+    const { leaveIn } = stateOf(r, b.at, now);
     if (leaveIn >= -1 && leaveIn <= r.buffer && !alarmed.has(b.id)) {
       alarmed.add(b.id);
-      $("bannerText").textContent = `${r.line.toUpperCase()} arrives at ${hm(b.at)} · ${r.boardStop} Stop ${r.boardLetter}`;
-      $("banner").classList.add("show");
-      clearInterval(beepTimer); beep(); beepTimer = setInterval(beep, 1200);
+      $("bannerText").textContent = `The ${r.line.toUpperCase()} reaches ${r.boardStop} at ${hm(b.at)}`;
+      $("banner").classList.add("show"); clearInterval(beepTimer); beep(); beepTimer = setInterval(beep, 1200);
       navigator.vibrate?.([400, 200, 400]);
     }
   }
@@ -367,97 +456,184 @@ function stopAlarm() { clearInterval(beepTimer); $("banner").classList.remove("s
 async function setWatching(on) {
   watching = on; alarmed = new Set();
   if (on) {
-    audio ||= new (window.AudioContext || window.webkitAudioContext)(); await audio.resume();   // unlock audio on tap
+    audio ||= new (window.AudioContext || window.webkitAudioContext)(); await audio.resume();
     const r = route(), now = Date.now();
-    live.forEach(b => { if (stateOf(r, b, now).leaveIn <= r.buffer) alarmed.add(b.id); });   // don't ring for buses already past
+    live.forEach(b => { if (stateOf(r, b.at, now).leaveIn <= r.buffer) alarmed.add(b.id); });   // skip buses already past the point
     try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
   } else { stopAlarm(); wakeLock?.release?.(); wakeLock = null; }
-  render();
+  renderAlarm();
 }
 document.addEventListener("visibilitychange", async () => {
   if (document.visibilityState !== "visible") return;
-  refresh();
-  if (watching) try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  refresh(); if (watching) try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
 });
 
 function switchTo(i) {
-  current = i; localStorage.setItem("current", i);
-  live = []; sched = []; status = null; disruptions = []; err = ""; loading = true;
-  setWatching(false); refresh();
+  current = i; save(); live = []; seq = null; status = null; disruptions = []; err = ""; loading = true; drawnKey = "";
+  setWatching(false); renderAll(); refresh();
 }
 
-// ---------- events ----------
+// ---------- routes sheet ----------
+function openRoutes() {
+  $("routesBody").innerHTML = `<div class="card" style="margin-top:8px">${routes.map((r, i) => `
+    <button class="pick" data-tab="${i}"><div class="badge">${esc(r.line.toUpperCase())}</div>
+      <div class="tx"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.boardStop)} · Stop ${esc(r.boardLetter)}${r.alightName ? ` → ${esc(r.alightName)}` : ""}</div></div>
+      ${i === current ? `<span class="ck">✓</span>` : ""}</button>`).join("") || `<div class="list-empty">No routes yet</div>`}</div>
+    <button class="primary" id="addBtn">＋ Add a route</button>`;
+  $("routesDlg").showModal();
+}
+
+// ---------- edit sheet ----------
+let edit = null;
+function stepper(id, label, sub, val) {
+  return `<div class="stepper"><div><div class="k">${label}</div><div class="s">${sub}</div></div>
+    <div class="ctl"><button data-step="${id}" data-d="-1">−</button><b class="num" id="${id}">${val} min</b><button data-step="${id}" data-d="1">+</button></div></div>`;
+}
+function openEdit() {
+  const r = route(); edit = { walk:r.walk, buffer:r.buffer };
+  $("editBody").innerHTML = `
+    <div class="field" style="margin-top:8px"><label>Route name</label><input id="eName" value="${esc(r.name)}"></div>
+    ${stepper("walk", "Walk to the stop", "From your door", r.walk)}
+    ${stepper("buffer", "Spare time", "Extra margin before you leave", r.buffer)}
+    <p class="sh-sub" style="font-size:13px;padding:0 4px">Alarm rings when the bus is ${r.walk + r.buffer} min away.</p>
+    <button class="danger" id="eDelete">Delete route</button>`;
+  $("editDlg").showModal();
+}
+$("eSave").onclick = () => {
+  const r = route(); r.name = $("eName").value.trim() || r.name; r.walk = edit.walk; r.buffer = edit.buffer;
+  save(); $("editDlg").close(); renderAll();
+};
+
+// ---------- add-route wizard ----------
+let w = null;
+const STEPS = 5;
+function openWizard() { $("routesDlg").close(); w = { step:1, walk:10, buffer:1 }; drawWizard(); $("wiz").showModal(); }
+function drawWizard() {
+  $("wSteps").innerHTML = Array.from({ length:STEPS }, (_, i) => `<i class="${i < w.step ? "on" : ""}"></i>`).join("");
+  $("wBack").textContent = w.step === 1 ? "Cancel" : "‹ Back";
+  const B = $("wBody");
+  if (w.step === 1) {
+    B.innerHTML = `<div class="sh-title">Which bus?</div><p class="sh-sub">Pick your bus number.</p>
+      <div class="search">${icon.search}<input id="wq" placeholder="Search, e.g. 135" autocomplete="off" autocapitalize="characters"></div>
+      <div class="lines" id="wLines"><div class="loading">Loading…</div></div>`;
+    busLines().then(ids => { w.ids = ids; drawLines(); });
+    $("wq").oninput = drawLines;
+  } else if (w.step === 2) {
+    B.innerHTML = `<div class="sh-title">Which direction?</div><p class="sh-sub">Bus ${esc(w.line.toUpperCase())}</p><div id="wDirs"><div class="loading">Loading…</div></div>`;
+    Promise.allSettled(["outbound", "inbound"].map(d => sequence(w.line, d))).then(res => {
+      const opts = res.map((x, i) => ({ dir: i ? "inbound" : "outbound", s: x.value })).filter(o => o.s?.orders.length);
+      w.seqs = Object.fromEntries(opts.map(o => [o.dir, o.s]));
+      $("wDirs").innerHTML = opts.map(o => `<button class="dir" data-dir="${o.dir}"><div class="k">Towards</div><div class="v">${esc(o.s.to)}</div>
+        <div class="s">From ${esc(o.s.from)} · ${o.s.orders[0].length} stops</div></button>`).join("") || `<div class="loading">No route info for this bus.</div>`;
+    });
+  } else if (w.step === 3 || w.step === 4) {
+    const s = w.seqs[w.dir], order = s.orders[0];
+    const list = w.step === 3 ? order.slice(0, -1) : order.slice(order.indexOf(w.board) + 1);
+    B.innerHTML = `<div class="sh-title">${w.step === 3 ? "Where do you get on?" : "Where do you get off?"}</div>
+      <p class="sh-sub">${w.step === 3 ? `Towards ${esc(s.to)}` : `From ${esc(s.stops[w.board].name)}`}</p>
+      <div class="search">${icon.search}<input id="wq" placeholder="Search stops" autocomplete="off"></div>
+      <div class="tl" id="wStops"></div>
+      ${w.step === 4 ? `<button class="ghost" data-skip>Skip — I don't need arrival times</button>` : ""}`;
+    const draw = () => {
+      const q = $("wq").value.toLowerCase();
+      $("wStops").innerHTML = list.map(id => s.stops[id]).filter(x => x.name.toLowerCase().includes(q)).map(x =>
+        `<button data-stop="${x.id}"><span class="pt">${esc(x.letter.slice(0, 2))}</span><span><div class="nm">${esc(x.name)}</div>
+         ${x.letter ? `<div class="tw">Stop ${esc(x.letter)}</div>` : ""}</span></button>`).join("") || `<div class="loading">No matching stops</div>`;
+    };
+    $("wq").oninput = draw; draw();
+  } else {
+    const s = w.seqs[w.dir], b = s.stops[w.board], a = w.alight && s.stops[w.alight];
+    w.name ??= a ? `${w.line.toUpperCase()} to ${a.name.split(/[\/,]/)[0].trim()}` : `${w.line.toUpperCase()} from ${b.name}`;
+    B.innerHTML = `<div class="sh-title">Your walk</div><p class="sh-sub">How long to get to ${esc(b.name)}${b.letter ? ` (Stop ${esc(b.letter)})` : ""}?</p>
+      ${stepper("walk", "Walk to the stop", "From your door", w.walk)}
+      ${stepper("buffer", "Spare time", "Extra margin", w.buffer)}
+      <div class="field"><label>Route name</label><input id="wName" value="${esc(w.name)}"></div>
+      <button class="primary" id="wSave">Save route</button>`;
+    $("wName").oninput = e => { w.name = e.target.value; };
+  }
+}
+function drawLines() {
+  const q = ($("wq")?.value || "").trim().toLowerCase();
+  const ids = (w.ids || []).filter(id => !q || id.startsWith(q));
+  $("wLines").innerHTML = ids.slice(0, 240).map(id => `<button data-line="${esc(id)}">${esc(id.toUpperCase())}</button>`).join("")
+    || `<div class="loading">No bus called “${esc(q)}”</div>`;
+}
+$("wBack").onclick = () => { if (w.step === 1) $("wiz").close(); else { w.step--; drawWizard(); } };
+$("wBody").addEventListener("click", e => {
+  const t = e.target.closest("button"); if (!t) return;
+  if (t.dataset.line) { w.line = t.dataset.line; w.step = 2; }
+  else if (t.dataset.dir) { w.dir = t.dataset.dir; w.step = 3; }
+  else if (t.dataset.stop && w.step === 3) { w.board = t.dataset.stop; w.step = 4; }
+  else if (t.dataset.stop && w.step === 4) { w.alight = t.dataset.stop; w.step = 5; }
+  else if (t.dataset.skip !== undefined) { w.alight = null; w.step = 5; }
+  else if (t.id === "wSave") {
+    const s = w.seqs[w.dir], b = s.stops[w.board], a = w.alight && s.stops[w.alight];
+    routes.push({ name: w.name.trim() || b.name, line: w.line, direction: w.dir, boardId: b.id, boardStop: b.name, boardLetter: b.letter,
+      alightId: a?.id || null, alightName: a?.name || null, walk: w.walk, buffer: w.buffer, ready: 5 });
+    $("wiz").close(); switchTo(routes.length - 1); return;
+  } else return;
+  w.name = undefined; drawWizard(); $("wBody").scrollTop = 0;
+});
+
+// ---------- phone alarm ----------
+// Websites can't set iPhone alarms directly. A one-time "Bus Alarm" Shortcut receives the time and creates the Clock alarm.
+let alarmAt = 0;
+function openAlarm(at, bus) {
+  alarmAt = at;
+  const ready = localStorage.getItem("shortcutReady") === "1";
+  $("alarmBody").innerHTML = `
+    <div class="bigtime num">${hm(at)}</div>
+    <p class="sh-sub" style="text-align:center">Leave at this time to catch the ${esc(route().line.toUpperCase())} at ${esc(bus)}</p>
+    ${ready ? `<button class="primary" id="runShortcut">⏰ Set alarm for ${hm(at)}</button>`
+            : `<button class="primary" id="openClock">Open Clock app</button>
+               <p class="sh-sub" style="text-align:center;font-size:13px;margin-top:8px">Add an alarm for <b>${hm(at)}</b> in Clock.</p>
+               <button class="ghost" id="showGuide">Make this one tap (2-minute setup, once)</button>
+               <div class="guide" id="guide" hidden><ol>
+                 <li>Open the <b>Shortcuts</b> app, tap <b>＋</b>.</li>
+                 <li>Tap the name at the top → rename to <code>${SHORTCUT}</code>.</li>
+                 <li>Add action <b>Get Dates from Input</b> — it uses <b>Shortcut Input</b>.</li>
+                 <li>Add action <b>Create Alarm</b> — set the time to <b>Dates</b>, label <code>Leave for the bus</code>.</li>
+                 <li>Tap <b>Done</b>, come back here.</li>
+               </ol><button class="primary" id="guideDone" style="margin-bottom:10px">I've made it — set alarm</button></div>`}
+    <button class="ghost" id="useInApp">Use the in-app alarm instead</button>
+    ${ready ? `<button class="ghost" style="color:var(--dim);font-size:13px" onclick="localStorage.removeItem('shortcutReady');openAlarm(${at}, '${esc(bus)}')">Shortcut not working? Show setup again</button>` : ""}`;
+  if (!$("alarmDlg").open) $("alarmDlg").showModal();
+}
+function runShortcut() {
+  location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(SHORTCUT)}&input=text&text=${encodeURIComponent(hm(alarmAt))}`;
+}
+
+// ---------- global clicks ----------
 document.addEventListener("click", e => {
   const t = e.target.closest("button"); if (!t) return;
-  if (t.dataset.tab !== undefined) switchTo(+t.dataset.tab);
-  else if (t.id === "addBtn") openAdd();
+  if (t.dataset.step) {
+    const o = t.closest("#wiz") ? w : edit, k = t.dataset.step;
+    o[k] = Math.max(0, Math.min(90, o[k] + +t.dataset.d)); t.parentElement.querySelector("b").textContent = `${o[k]} min`;
+  }
+  else if (t.id === "switcher") openRoutes();
+  else if (t.id === "recenter") { userMoved = false; fitMap(true); }
+  else if (t.id === "addBtn") openWizard();
+  else if (t.dataset.tab !== undefined) { $("routesDlg").close(); switchTo(+t.dataset.tab); }
   else if (t.id === "editBtn") openEdit();
+  else if (t.id === "eDelete") { if (confirm(`Delete “${route().name}”?`)) { routes.splice(current, 1); $("editDlg").close(); switchTo(0); } }
   else if (t.id === "watchBtn") setWatching(!watching);
   else if (t.id === "stopAlarm") stopAlarm();
   else if (t.dataset.close !== undefined) t.closest("dialog").close();
-  else if (t.dataset.alarm) {
-    const text = `${hm(+t.dataset.alarm)}|Leave now: ${route().line.toUpperCase()} at ${t.dataset.bus}`;
-    location.href = `shortcuts://run-shortcut?name=${encodeURIComponent(SHORTCUT)}&input=text&text=${encodeURIComponent(text)}`;
-  }
+  else if (t.dataset.focus) { const m = busMarkers[t.dataset.focus]; if (m) { userMoved = true; map.setView(m.getLatLng(), 16, { animate:true }); $("mapCard").scrollIntoView({ behavior:"smooth", block:"center" }); } }
+  else if (t.dataset.alarm) openAlarm(+t.dataset.alarm, t.dataset.bus);
+  else if (t.id === "runShortcut") runShortcut();
+  else if (t.id === "openClock") location.href = "clock-alarm://";
+  else if (t.id === "showGuide") { $("guide").hidden = false; t.hidden = true; }
+  else if (t.id === "guideDone") { localStorage.setItem("shortcutReady", "1"); runShortcut(); }
+  else if (t.id === "useInApp") { $("alarmDlg").close(); if (!watching) setWatching(true); }
 });
+document.addEventListener("toggle", e => { if (e.target.classList?.contains("notice")) openNotice = e.target.open; }, true);
+// close sheets by tapping the backdrop
+document.querySelectorAll("dialog").forEach(d => d.addEventListener("click", e => { if (e.target === d) d.close(); }));
 
-// edit
-function openEdit() { const r = route(); $("eName").value = r.name; $("eWalk").value = r.walk; $("eBuf").value = r.buffer; $("editDlg").showModal(); }
-$("eSave").onclick = () => {
-  const r = route(); r.name = $("eName").value.trim() || r.name; r.walk = Math.max(0, +$("eWalk").value || 0); r.buffer = Math.max(0, +$("eBuf").value || 0);
-  saveRoutes(); $("editDlg").close(); render();
-};
-$("eDelete").onclick = () => {
-  if (!confirm(`Delete "${route().name}"?`)) return;
-  routes.splice(current, 1); saveRoutes(); $("editDlg").close(); switchTo(0);
-};
-
-// add
-let lineStops = [], picked = null;
-function openAdd() { $("aLine").value = ""; $("aErr").textContent = ""; $("aMore").hidden = true; $("aSave").disabled = true; picked = null; $("addDlg").showModal(); }
-async function loadLine() {
-  const line = $("aLine").value.trim().toLowerCase(); if (!line) return;
-  $("aErr").textContent = "Finding stops…";
-  try { lineStops = (await getJSON(`/Line/${encodeURIComponent(line)}/StopPoints`)).filter(s => !s.naptanId.startsWith("490G")); }
-  catch { $("aErr").textContent = "Couldn't find that bus number."; return; }
-  lineStops.sort((a, b) => a.commonName.localeCompare(b.commonName) || (a.stopLetter || "").localeCompare(b.stopLetter || ""));
-  $("aErr").textContent = ""; $("aMore").hidden = false; $("aFilter").value = ""; drawPicker();
-  $("aAlight").innerHTML = `<option value="">—</option>` + [...new Set(lineStops.map(s => s.commonName))].map(n => `<option>${esc(n)}</option>`).join("");
-  $("aFilter").focus();
-}
-$("aLine").addEventListener("change", loadLine);
-$("aLine").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); loadLine(); } });
-function drawPicker() {
-  const q = $("aFilter").value.toLowerCase();
-  $("aBoard").innerHTML = lineStops.filter(s => s.commonName.toLowerCase().includes(q)).slice(0, 60).map(s =>
-    `<button class="opt ${picked?.naptanId === s.naptanId ? "sel" : ""}" data-stop="${s.naptanId}">
-       <div class="a">${esc(s.commonName)} · Stop ${esc(s.stopLetter || s.indicator || "")}</div><div class="b">towards ${esc(towards(s) || "—")}</div></button>`).join("")
-    || `<div class="opt b">No matching stops</div>`;
-}
-$("aFilter").oninput = drawPicker;
-$("aBoard").addEventListener("click", e => {
-  const b = e.target.closest("[data-stop]"); if (!b) return;
-  picked = lineStops.find(s => s.naptanId === b.dataset.stop);
-  if (!$("aName").value || $("aName").dataset.auto) { $("aName").value = `${$("aLine").value.trim().toUpperCase()} from ${picked.commonName}`; $("aName").dataset.auto = 1; }
-  $("aSave").disabled = false; drawPicker();
-});
-$("aName").oninput = () => delete $("aName").dataset.auto;
-$("aSave").onclick = () => {
-  if (!picked) return;
-  const an = $("aAlight").value;
-  routes.push({ name: $("aName").value.trim() || picked.commonName, line: $("aLine").value.trim().toLowerCase(),
-    boardId: picked.naptanId, boardStop: picked.commonName, boardLetter: picked.stopLetter || picked.indicator || "",
-    alightName: an || null, alightIds: an ? lineStops.filter(x => x.commonName === an).map(x => x.naptanId) : [],
-    walk: Math.max(0, +$("aWalk").value || 0), buffer: Math.max(0, +$("aBuf").value || 0), ready: 5, direction: null });
-  saveRoutes(); $("addDlg").close(); switchTo(routes.length - 1);
-};
-
-// migrate routes saved by the first version
-routes.forEach(r => { if (!r.boardStop && r.boardName) { const m = r.boardName.match(/^(.*) \(Stop (.*)\)$/); r.boardStop = m ? m[1] : r.boardName; r.boardLetter = m ? m[2] : ""; } });
-saveRoutes();
-
-render(); refresh();
-setInterval(render, 1000);
+// ---------- go ----------
+initMap(); renderAll(); refresh(); busLines();
+setInterval(() => { renderAll(); moveBuses(); checkAlarm(); }, 1000);
 setInterval(refresh, POLL_MS);
 </script>
 </body>
