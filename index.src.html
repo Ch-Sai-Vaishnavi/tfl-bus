@@ -592,7 +592,7 @@ document.addEventListener("click", e => {
   }
   else if (t.id === "switcher") openRoutes();
   else if (t.id === "addBtn") openWizard();
-  else if (t.dataset.tab !== undefined) { $("routesDlg").close(); switchTo(+t.dataset.tab); }
+  else if (t.dataset.tab !== undefined) { pickedManually = true; $("routesDlg").close(); switchTo(+t.dataset.tab); }
   else if (t.id === "editBtn") openEdit();
   else if (t.id === "eDelete") { if (!route().builtin && confirm(`Delete “${route().name}”?`)) { routes.splice(current, 1); $("editDlg").close(); switchTo(0); } }
   else if (t.id === "watchBtn") setWatching(!watching);
@@ -609,7 +609,29 @@ document.addEventListener("toggle", e => { if (e.target.classList?.contains("not
 document.querySelectorAll("dialog").forEach(d => d.addEventListener("click", e => { if (e.target === d) d.close(); }));
 
 // ---------- go ----------
-renderAll(); refresh(); busLines();
+// ---------- open the right route for where you are (location never leaves the phone) ----------
+const PLACES = [   // near this point -> open this built-in route
+  { lat:51.52193, lon:-0.07815, route:"135-home" },      // work: Commercial Street / Worship Street (Stop D)
+  { lat:51.50287, lon:-0.01819, route:"135-to-work" },   // home side: Canary Wharf Station (Stop K)
+];
+const NEAR_KM = 2;
+function km(a, b, c, d) {
+  const r = x => x * Math.PI / 180, h = Math.sin(r(c - a) / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(r(d - b) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+let pickedManually = false;
+function pickByLocation() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(pos => {
+    if (pickedManually) return;   // you already chose a route yourself
+    const { latitude:la, longitude:lo } = pos.coords;
+    const near = PLACES.map(p => ({ ...p, d: km(la, lo, p.lat, p.lon) })).filter(p => p.d <= NEAR_KM).sort((a, b) => a.d - b.d)[0];
+    const i = near ? routes.findIndex(r => r.id === near.route) : -1;
+    if (i >= 0 && i !== current) switchTo(i);
+  }, () => {}, { enableHighAccuracy:false, timeout:10000, maximumAge:5 * MIN });
+}
+
+renderAll(); refresh(); busLines(); pickByLocation();
 setInterval(() => { renderAll(); checkAlarm(); }, 1000);
 setInterval(refresh, POLL_MS);
 </script>
