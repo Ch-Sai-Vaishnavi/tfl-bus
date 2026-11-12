@@ -75,7 +75,22 @@
   .head span { font-size:13px; color:var(--dim); display:flex; align-items:center; gap:6px; }
   .dot { width:7px; height:7px; border-radius:50%; background:var(--green); animation:pulse 2s infinite; }
   @keyframes pulse { 0% { box-shadow:0 0 0 0 rgba(40,199,111,.55); } 70%,100% { box-shadow:0 0 0 7px rgba(40,199,111,0); } }
-  .bus { display:flex; align-items:center; gap:14px; padding:14px 18px; width:100%; text-align:left; }
+  .bus { display:flex; align-items:center; gap:14px; padding:14px 18px; width:100%; text-align:left; cursor:pointer; }
+  .bus.tracked { background:color-mix(in srgb, var(--blue) 8%, transparent); }
+  .pin { color:var(--blue); font-size:12px; font-weight:700; margin-left:6px; }
+  .hint { text-align:center; font-size:12px; color:var(--faint); margin:-4px 0 4px; }
+  /* my ride */
+  .ride { padding:16px 18px; border:2px solid var(--blue); }
+  .ride-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .ride-tag { font-size:12px; font-weight:700; color:var(--blue); text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:6px; }
+  .ride-x { width:30px; height:30px; border-radius:50%; background:var(--fill); color:var(--dim); font-size:14px; }
+  .ride-phase { margin-top:10px; font-size:15px; font-weight:600; color:var(--dim); }
+  .ride-big { font-size:40px; font-weight:700; letter-spacing:-.035em; line-height:1.05; margin-top:2px; }
+  .ride-big small { font-size:17px; font-weight:600; color:var(--dim); letter-spacing:0; margin-left:6px; }
+  .ride-sub { font-size:14px; color:var(--dim); margin-top:6px; }
+  .ride .bar { height:6px; border-radius:3px; background:var(--fill); overflow:hidden; margin-top:12px; }
+  .ride .bar i { display:block; height:100%; background:var(--blue); border-radius:3px; transition:width 1s linear; }
+  .ride.done { border-color:var(--green); } .ride.done .ride-tag { color:var(--green); }
   .bus + .bus { border-top:1px solid var(--line); }
   .mins { flex:none; width:58px; text-align:center; }
   .mins b { display:block; font-size:26px; font-weight:700; letter-spacing:-.03em; line-height:1; }
@@ -178,6 +193,7 @@
     </button>
   </div>
 
+  <div id="ride"></div>
   <div id="hero"></div>
   <div id="alarmRow"></div>
   <div id="list"></div>
@@ -400,16 +416,93 @@ function renderList() {
     const s = stateOf(r, b.at, now), away = stopsAway(b, now), near = nearName(b, now);
     const state = s.cls === "late" ? "Missed" : s.cls === "now" ? "Leave now"
       : `Leave ${hm(s.leaveAt)}<em class="num">in ${Math.floor(s.leaveIn)} min</em>`;
-    h += `<div class="bus ${s.cls}">
+    const mine = ride && ride.vid === b.id;
+    h += `<div class="bus ${s.cls} ${mine ? "tracked" : ""}" data-track="${esc(b.id)}">
       <div class="mins num"><b>${s.eta < 1 ? "Due" : Math.floor(s.eta)}</b><i>${s.eta < 1 ? "" : "min"}</i></div>
-      <div class="mid"><div class="t num">${hm(b.at)}${b.off ? ` <span style="color:var(--dim);font-weight:500">→ ${b.offEst ? "≈" : ""}${hm(b.off)}</span>` : ""}</div>
+      <div class="mid"><div class="t num">${mine ? `<span class="pin">📍</span>` : ""}${hm(b.at)}${b.off ? ` <span style="color:var(--dim);font-weight:500">→ ${b.offEst ? "≈" : ""}${hm(b.off)}</span>` : ""}</div>
         <div class="s">${away != null ? `${away} stop${away === 1 ? "" : "s"} away` : ""}${near ? ` · near ${esc(near)}` : ""}</div></div>
       <span class="state">${state}</span></div>`;
   }
   h += `</div>`;
+  if (buses.length) h += `<div class="hint">${ride ? "Tap another bus to track it instead" : "Tap a bus to track it until you arrive"}</div>`;
   $("list").innerHTML = h;
   const good = status === "Good Service";
   $("foot").innerHTML = `${good ? `<span style="color:var(--green)">●</span> Good service on the ${esc(r.line.toUpperCase())} · ` : ""}Live TfL data${live.some(b => b.offEst) ? " · ≈ arrival from TfL Journey Planner until the live time is published" : ""}${fetched ? ` · updated ${Math.round((now - fetched) / 1000)}s ago` : ""}`;
+}
+
+// ---------- my ride: follow one chosen bus until you arrive ----------
+let ride = JSON.parse(localStorage.getItem("ride") || "null");
+const saveRide = () => ride ? localStorage.setItem("ride", JSON.stringify(ride)) : localStorage.removeItem("ride");
+if (ride && Date.now() - ride.started > 3 * 60 * MIN) { ride = null; saveRide(); }   // safety: forget after 3 h
+function startRide(b) {
+  const r = route();
+  ride = { route:r.name, line:r.line, vid:b.id, boardId:r.boardId, boardStop:r.boardStop, boardLetter:r.boardLetter,
+           alightId:r.alightId, alightName:r.alightName, alightLetter:r.alightLetter, walk:r.walk,
+           at:b.at, off:b.off, offEst:!!b.offEst, phase:"coming", next:nearName(b, Date.now()), away:stopsAway(b, Date.now()),
+           started:Date.now(), updated:Date.now(), routeRef:{ line:r.line, boardId:r.boardId, direction:r.direction } };
+  saveRide(); renderRide(); trackRide();
+}
+function stopRide() { ride = null; saveRide(); renderRide(); renderList(); }
+async function trackRide() {   // live TfL predictions for this one bus
+  if (!ride) return;
+  let preds;
+  try {
+    preds = (await getJSON(`/Vehicle/${encodeURIComponent(ride.vid)}/Arrivals`)).filter(p => p.lineId === ride.line)
+      .map(p => ({ id:p.naptanId, name:p.stationName, t:Date.parse(p.expectedArrival) })).sort((a, b) => a.t - b.t);
+  } catch { return; }
+  if (!ride) return;
+  const now = Date.now();
+  const bp = preds.find(p => p.id === ride.boardId && p.t > now - 30000);
+  const ap = ride.alightId && preds.find(p => p.id === ride.alightId && p.t > (bp ? bp.t : now - 30000));
+  if (bp) ride.at = bp.t;
+  if (ap) { ride.off = ap.t; ride.offEst = false; }
+  else if (ride.alightId && ride.phase !== "arrived") {   // not live yet
+    // same estimate as the bus list (TfL Journey Planner) when this bus is still listed there
+    const lb = live.find(b => b.id === ride.vid && route()?.boardId === ride.boardId && b.off);
+    if (lb) { ride.off = lb.off; ride.offEst = lb.offEst; }
+    else try {   // otherwise: last live point + TfL's scheduled ride time
+      const rt = await rideTimes(ride.routeRef);
+      const last = [...preds].reverse().find(p => rt[p.id] != null && rt[p.id] <= rt[ride.alightId] && p.t > now);
+      if (last && rt[ride.alightId] != null) { ride.off = last.t + (rt[ride.alightId] - rt[last.id]) * MIN; ride.offEst = true; }
+    } catch {}
+  }
+  if (bp || now < ride.at - MIN) ride.phase = "coming";
+  else if (ap || (ride.off && now < ride.off)) ride.phase = "onboard";
+  else if (ride.phase !== "arrived") { ride.phase = "arrived"; ride.arrivedAt = now; }
+  const ahead = preds.filter(p => p.t > now);
+  ride.next = ahead[0]?.name || ride.next;
+  ride.away = ride.phase === "coming" ? ahead.filter(p => p.t < ride.at).length : null;
+  ride.toGo = ride.phase === "onboard" && ride.off ? ahead.filter(p => p.t <= ride.off + 30000).length : null;
+  ride.updated = now; saveRide(); renderRide();
+}
+function renderRide() {
+  const el = $("ride"), now = Date.now();
+  if (!ride) { el.innerHTML = ""; return; }
+  if (ride.phase === "arrived" && now - ride.arrivedAt > 3 * MIN) { stopRide(); return; }   // clear 3 min after arriving
+  if (ride.phase !== "arrived" && ride.off && now > ride.off + 2 * MIN && now - ride.updated > 2 * MIN) { ride.phase = "arrived"; ride.arrivedAt = now; saveRide(); }
+  const to = ride.alightName ? `${esc(ride.alightName)}${ride.alightLetter ? ` · Stop ${esc(ride.alightLetter)}` : ""}` : "";
+  const arr = ride.off ? `${ride.offEst ? "≈" : ""}${hm(ride.off)}` : "—";
+  const mins = t => Math.max(0, Math.floor((t - now) / MIN));
+  let body;
+  if (ride.phase === "coming") {
+    const eta = (ride.at - now) / MIN, leaveIn = eta - (ride.walk || 0);
+    body = `<div class="ride-phase">Bus to ${esc(ride.boardStop)}${ride.boardLetter ? ` · Stop ${esc(ride.boardLetter)}` : ""}</div>
+      <div class="ride-big num">${eta < 1 ? "Due" : `${Math.floor(eta)} min`}<small>${hm(ride.at)}</small></div>
+      <div class="ride-sub num">${ride.away != null ? `${ride.away} stop${ride.away === 1 ? "" : "s"} away · ` : ""}${ride.next ? `near ${esc(ride.next)} · ` : ""}${leaveIn > 0 ? `leave in ${Math.floor(leaveIn)} min` : "leave now"}</div>
+      ${to ? `<div class="ride-sub num">You arrive <b>${arr}</b> at ${to}</div>` : ""}`;
+  } else if (ride.phase === "onboard") {
+    const pct = ride.off ? Math.max(0, Math.min(100, (now - ride.at) / (ride.off - ride.at) * 100)) : 0;
+    body = `<div class="ride-phase">On the bus${to ? ` · to ${to}` : ""}</div>
+      <div class="ride-big num">${arr}<small>${ride.off ? `in ${mins(ride.off)} min` : ""}</small></div>
+      <div class="ride-sub">${ride.next ? `Next: ${esc(ride.next)}` : ""}${ride.toGo != null ? ` · ${ride.toGo} stop${ride.toGo === 1 ? "" : "s"} to go` : ""}</div>
+      <div class="bar"><i style="width:${pct}%"></i></div>`;
+  } else {
+    body = `<div class="ride-phase">You've arrived${to ? ` at ${to}` : ""}</div>
+      <div class="ride-big num">✓ ${ride.off ? hm(ride.off) : ""}</div>`;
+  }
+  el.innerHTML = `<div class="card ride ${ride.phase === "arrived" ? "done" : ""}">
+    <div class="ride-top"><div class="ride-tag">${ride.phase === "arrived" ? "✓" : `<i class="dot"></i>`} My ride · ${esc(ride.line.toUpperCase())} · ${esc(ride.vid)}</div>
+      <button class="ride-x" id="stopRide" aria-label="Stop tracking">✕</button></div>${body}</div>`;
 }
 
 // ---------- in-app alarm ----------
@@ -445,7 +538,7 @@ async function setWatching(on) {
 }
 document.addEventListener("visibilitychange", async () => {
   if (document.visibilityState !== "visible") return;
-  refresh(); if (watching) try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
+  refresh(); trackRide(); if (watching) try { wakeLock = await navigator.wakeLock?.request("screen"); } catch {}
 });
 
 function switchTo(i) {
@@ -592,7 +685,10 @@ function runShortcut() {
 
 // ---------- global clicks ----------
 document.addEventListener("click", e => {
+  const row = e.target.closest("[data-track]");
+  if (row && !e.target.closest("button")) { const b = live.find(x => x.id === row.dataset.track); if (b) startRide(b); return; }
   const t = e.target.closest("button"); if (!t) return;
+  if (t.id === "stopRide") return stopRide();
   if (t.dataset.step) {
     const o = t.closest("#wiz") ? w : edit, k = t.dataset.step;
     o[k] = Math.max(0, Math.min(90, o[k] + +t.dataset.d)); t.parentElement.querySelector("b").textContent = `${o[k]} min`;
@@ -644,8 +740,10 @@ function pickByLocation() {
 }
 
 renderAll(); refresh(); busLines(); pickByLocation();
-setInterval(() => { renderAll(); checkAlarm(); }, 1000);
+setInterval(() => { renderAll(); renderRide(); checkAlarm(); }, 1000);
 setInterval(refresh, POLL_MS);
+renderRide(); trackRide();
+setInterval(trackRide, POLL_MS);
 </script>
 </body>
 </html>
