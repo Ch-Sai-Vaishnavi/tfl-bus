@@ -212,7 +212,7 @@ const MIN = 60000;
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const hm = t => new Date(t).toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
+const hm = t => new Date(t).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", hourCycle:"h12" }).toLowerCase();   // e.g. 12:05 pm, 3:05 pm
 const today = () => new Date().toDateString();
 const getJSON = async path => { const r = await fetch(API + path); if (!r.ok) throw new Error(r.status); return r.json(); };
 const icon = { search:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>` };
@@ -347,7 +347,7 @@ const mmss = m => { const s = Math.max(0, Math.round(m * 60)); return `${Math.fl
 function renderAll() { renderHeader(); renderHero(); renderAlarm(); renderList(); }
 function renderHeader() {
   const r = route();
-  $("date").textContent = new Date().toLocaleString("en-GB", { weekday:"long", day:"numeric", month:"short" }) + " · " + new Date().toLocaleTimeString("en-GB");
+  $("date").textContent = new Date().toLocaleString("en-GB", { weekday:"long", day:"numeric", month:"short" }) + " · " + new Date().toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", second:"2-digit", hourCycle:"h12" }).toLowerCase();
   $("title").textContent = r ? r.name : "Add a route";
   $("editBtn").style.visibility = r ? "visible" : "hidden";
 }

@@ -81,7 +81,7 @@ const BUILTIN = [
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const hm = t => new Date(t).toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
+const hm = t => new Date(t).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit", hourCycle:"h12" }).toLowerCase();   // e.g. 12:05 pm, 3:05 pm
 const today = new Date().toDateString();
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 async function getJSON(p, attempt = 0) {   // if TfL says "too many requests", wait and retry (5s, 10s, 20s)
