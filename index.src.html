@@ -195,8 +195,16 @@ const SHORTCUT = "Bus Alarm";            // iPhone Shortcut that creates a Clock
 const POLL_MS = 30000;
 // All London bus routes (snapshot). Refreshed from TfL once a day so new/withdrawn routes are picked up.
 const BUILTIN_LINES = "__LINES__".split(" ");
-const DEFAULT_ROUTES = [{ name:"135 to work", line:"135", direction:"outbound", boardId:"490016668K", boardStop:"Canary Wharf Station",
-  boardLetter:"K", alightId:"490005524E", alightName:"Shoreditch High Street Station", walk:15, buffer:1, ready:5 }];
+// Built-in routes: always present, can't be deleted (name / walk / spare edits are kept).
+// Stop E is listed by TfL as "Shoreditch High Street Station" (Stop E) — same spot as Commercial St / Worship St.
+const BUILTIN_ROUTES = [
+  { id:"135-to-work", builtin:true, name:"135 to work", line:"135", direction:"outbound",
+    boardId:"490016668K", boardStop:"Canary Wharf Station", boardLetter:"K",
+    alightId:"490005524E", alightName:"Commercial Street / Worship Street", alightLetter:"E", walk:15, buffer:1, ready:5 },
+  { id:"135-home", builtin:true, name:"135 home", line:"135", direction:"inbound",
+    boardId:"490005524D", boardStop:"Commercial Street / Worship Street", boardLetter:"D",
+    alightId:"490016668L", alightName:"Canary Wharf Station", alightLetter:"L", walk:7, buffer:1, ready:5 },
+];
 const MIN = 60000;
 
 const $ = id => document.getElementById(id);
@@ -207,12 +215,18 @@ const getJSON = async path => { const r = await fetch(API + path); if (!r.ok) th
 const icon = { search:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>` };
 
 // ---------- persistent state ----------
-let routes = JSON.parse(localStorage.getItem("routes") || "null") || DEFAULT_ROUTES;
-routes.forEach(r => {   // upgrade routes saved by older versions
+const saved = JSON.parse(localStorage.getItem("routes") || "null") || [];
+const legacyDefault = r => !r.id && r.line === "135" && r.boardId === "490016668K";   // the old single built-in route
+saved.forEach(r => {   // upgrade routes saved by older versions
   if (!r.boardStop && r.boardName) { const m = r.boardName.match(/^(.*) \(Stop (.*)\)$/); r.boardStop = m ? m[1] : r.boardName; r.boardLetter = m ? m[2] : ""; }
   if (!r.alightId && r.alightIds?.length) r.alightId = r.alightIds.find(id => id === "490005524E") || r.alightIds[0];
   r.ready ??= 5;
 });
+let routes = [
+  ...BUILTIN_ROUTES.map(b => { const u = saved.find(x => x.id === b.id) || saved.find(x => b.id === "135-to-work" && legacyDefault(x));
+                               return u ? { ...b, name:u.name, walk:u.walk, buffer:u.buffer } : { ...b }; }),
+  ...saved.filter(x => !BUILTIN_ROUTES.some(b => b.id === x.id) && !legacyDefault(x)),
+];
 let current = Math.min(+localStorage.getItem("current") || 0, Math.max(routes.length - 1, 0));
 const save = () => { localStorage.setItem("routes", JSON.stringify(routes)); localStorage.setItem("current", current); };
 save();
@@ -242,6 +256,16 @@ async function sequence(line, dir) {   // stops in order + map geometry for one 
   return (seqCache[key] = { stops, orders, from: stops[orders[0]?.[0]]?.name, to: stops[orders[0]?.at(-1)]?.name });
 }
 
+const rideCache = {};
+async function rideTimes(r) {   // TfL scheduled minutes from the boarding stop to each later stop (cached per day)
+  const key = `${r.line}|${r.boardId}|${r.direction}|${today()}`;
+  if (rideCache[key]) return rideCache[key];
+  const t = await getJSON(`/Line/${encodeURIComponent(r.line)}/Timetable/${r.boardId}?direction=${r.direction || "outbound"}`);
+  const m = {};
+  for (const i of t.timetable?.routes?.[0]?.stationIntervals?.[0]?.intervals || []) m[i.stopId] = i.timeToArrival;
+  return (rideCache[key] = m);
+}
+
 // ---------- live data ----------
 let openNotice = false;
 let live = [], status = null, disruptions = [], err = "", fetched = 0, loading = true, seq = null, lineGone = false;
@@ -258,8 +282,18 @@ async function refresh() {
     live = arr.map(a => {
       const at = Date.parse(a.expectedArrival);
       const preds = (trips[a.vehicleId] || []).sort((x, y) => x.t - y.t);
-      return { id:a.vehicleId, at, preds, off: preds.find(p => p.id === r.alightId && p.t > at)?.t ?? null };
+      return { id:a.vehicleId, at, preds, off: preds.find(p => p.id === r.alightId && p.t > at)?.t ?? null, offEst:false };
     });
+    // TfL only predicts ~30 min ahead per bus. If the getting-off stop isn't covered yet, estimate it:
+    // last live prediction for this bus + TfL's scheduled ride time from there to the stop.
+    let ride = {};
+    try { if (r.alightId) ride = await rideTimes(r); } catch {}
+    if (ride[r.alightId] != null) for (const b of live) {
+      if (b.off) continue;
+      const last = [...b.preds].reverse().find(p => p.t >= b.at && ride[p.id] != null && ride[p.id] <= ride[r.alightId]);
+      b.off = last ? last.t + (ride[r.alightId] - ride[last.id]) * MIN : b.at + ride[r.alightId] * MIN;
+      b.offEst = true;
+    }
     err = "";
   } catch { err = "Can't reach TfL right now — retrying…"; }
   try { seq = await sequence(r.line, r.direction || "outbound"); } catch {}
@@ -295,7 +329,7 @@ function renderHero() {
   const r = route(), now = Date.now();
   if (!r) { $("hero").innerHTML = `<div class="card hero empty"><div class="t">No routes yet</div><div class="s">Tap the title to add your first route.</div></div>`; return; }
   const head = `<div class="hero-top"><div class="badge">${esc(r.line.toUpperCase())}</div>
-    <div class="hero-route"><b>${esc(r.boardStop)}${r.boardLetter ? ` · Stop ${esc(r.boardLetter)}` : ""}</b>${r.alightName ? `to ${esc(r.alightName)}` : `towards ${esc(seq?.to || "")}`}</div></div>`;
+    <div class="hero-route"><b>${esc(r.boardStop)}${r.boardLetter ? ` · Stop ${esc(r.boardLetter)}` : ""}</b>${r.alightName ? `to ${esc(r.alightName)}${r.alightLetter ? ` · Stop ${esc(r.alightLetter)}` : ""}` : `towards ${esc(seq?.to || "")}`}</div></div>`;
   const next = live.find(b => b.at > now && stateOf(r, b.at, now).leaveIn >= -1);
   if (loading) { $("hero").innerHTML = `<div class="card hero">${head}<div class="hero-label">Getting live times…</div></div>`; return; }
   if (!next) {
@@ -311,7 +345,7 @@ function renderHero() {
     <div class="facts">
       <div class="fact"><div class="k">Leave by</div><div class="v num">${hm(s.leaveAt)}</div></div>
       <div class="fact"><div class="k">Bus at stop</div><div class="v num">${hm(next.at)}</div></div>
-      <div class="fact"><div class="k">${r.alightName ? "You arrive" : "Stops away"}</div><div class="v num">${r.alightName ? (next.off ? hm(next.off) : "—") : (stopsAway(next, now) ?? "—")}</div></div>
+      <div class="fact"><div class="k">${r.alightName ? "You arrive" : "Stops away"}</div><div class="v num">${r.alightName ? (next.off ? `${next.offEst ? "≈" : ""}${hm(next.off)}` : "—") : (stopsAway(next, now) ?? "—")}</div></div>
     </div>
     ${s.leaveIn > 0 ? `<button class="hero-btn" data-alarm="${s.leaveAt}" data-bus="${hm(next.at)}">⏰ Phone alarm for ${hm(s.leaveAt)}</button>` : ""}
   </div>`;
@@ -339,14 +373,14 @@ function renderList() {
     const state = s.cls === "late" ? "Missed" : s.cls === "now" ? "Leave now" : `Leave ${hm(s.leaveAt)}`;
     h += `<div class="bus ${s.cls}">
       <div class="mins num"><b>${s.eta < 1 ? "Due" : Math.floor(s.eta)}</b><i>${s.eta < 1 ? "" : "min"}</i></div>
-      <div class="mid"><div class="t num">Arrives ${hm(b.at)}${b.off ? ` <span style="color:var(--dim);font-weight:500">→ ${hm(b.off)}</span>` : ""}</div>
+      <div class="mid"><div class="t num">${hm(b.at)}${b.off ? ` <span style="color:var(--dim);font-weight:500">→ ${b.offEst ? "≈" : ""}${hm(b.off)}</span>` : ""}</div>
         <div class="s">${away != null ? `${away} stop${away === 1 ? "" : "s"} away` : ""}${near ? ` · near ${esc(near)}` : ""}</div></div>
       <span class="state">${state}</span></div>`;
   }
   h += `</div>`;
   $("list").innerHTML = h;
   const good = status === "Good Service";
-  $("foot").innerHTML = `${good ? `<span style="color:var(--green)">●</span> Good service on the ${esc(r.line.toUpperCase())} · ` : ""}Live TfL data${fetched ? ` · updated ${Math.round((now - fetched) / 1000)}s ago` : ""}`;
+  $("foot").innerHTML = `${good ? `<span style="color:var(--green)">●</span> Good service on the ${esc(r.line.toUpperCase())} · ` : ""}Live TfL data${live.some(b => b.offEst) ? " · ≈ arrival estimated from TfL's timetable" : ""}${fetched ? ` · updated ${Math.round((now - fetched) / 1000)}s ago` : ""}`;
 }
 
 // ---------- in-app alarm ----------
@@ -394,7 +428,7 @@ function switchTo(i) {
 function openRoutes() {
   $("routesBody").innerHTML = `<div class="card" style="margin-top:8px">${routes.map((r, i) => `
     <button class="pick" data-tab="${i}"><div class="badge">${esc(r.line.toUpperCase())}</div>
-      <div class="tx"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.boardStop)} · Stop ${esc(r.boardLetter)}${r.alightName ? ` → ${esc(r.alightName)}` : ""}</div></div>
+      <div class="tx"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.boardStop)} · Stop ${esc(r.boardLetter)}${r.alightName ? ` → ${esc(r.alightName)}${r.alightLetter ? ` · ${esc(r.alightLetter)}` : ""}` : ""}</div></div>
       ${i === current ? `<span class="ck">✓</span>` : ""}</button>`).join("") || `<div class="list-empty">No routes yet</div>`}</div>
     <button class="primary" id="addBtn">＋ Add a route</button>`;
   $("routesDlg").showModal();
@@ -413,7 +447,7 @@ function openEdit() {
     ${stepper("walk", "Walk to the stop", "From your door", r.walk)}
     ${stepper("buffer", "Spare time", "Extra margin before you leave", r.buffer)}
     <p class="sh-sub" style="font-size:13px;padding:0 4px">Alarm rings when the bus is ${r.walk + r.buffer} min away.</p>
-    <button class="danger" id="eDelete">Delete route</button>`;
+    ${r.builtin ? `<p class="sh-sub" style="font-size:13px;padding:0 4px">Built-in route — always kept.</p>` : `<button class="danger" id="eDelete">Delete route</button>`}`;
   $("editDlg").showModal();
 }
 $("eSave").onclick = () => {
@@ -450,7 +484,7 @@ function drawWizard() {
       <p class="sh-sub">${w.step === 3 ? `Towards ${esc(s.to)}` : `From ${esc(s.stops[w.board].name)}`}</p>
       <div class="search">${icon.search}<input id="wq" placeholder="Search stops" autocomplete="off"></div>
       <div class="tl" id="wStops"></div>
-      ${w.step === 4 ? `<button class="ghost" data-skip>Skip — I don't need arrival times</button>` : ""}`;
+`;
     const draw = () => {
       const q = $("wq").value.toLowerCase();
       $("wStops").innerHTML = list.map(id => s.stops[id]).filter(x => x.name.toLowerCase().includes(q)).map(x =>
@@ -490,11 +524,10 @@ $("wBody").addEventListener("click", e => {
   else if (t.dataset.dir) { w.dir = t.dataset.dir; w.step = 3; }
   else if (t.dataset.stop && w.step === 3) { w.board = t.dataset.stop; w.step = 4; }
   else if (t.dataset.stop && w.step === 4) { w.alight = t.dataset.stop; w.step = 5; }
-  else if (t.dataset.skip !== undefined) { w.alight = null; w.step = 5; }
   else if (t.id === "wSave") {
     const s = w.seqs[w.dir], b = s.stops[w.board], a = w.alight && s.stops[w.alight];
     routes.push({ name: w.name.trim() || b.name, line: w.line, direction: w.dir, boardId: b.id, boardStop: b.name, boardLetter: b.letter,
-      alightId: a?.id || null, alightName: a?.name || null, walk: w.walk, buffer: w.buffer, ready: 5 });
+      alightId: a?.id || null, alightName: a?.name || null, alightLetter: a?.letter || "", walk: w.walk, buffer: w.buffer, ready: 5 });
     $("wiz").close(); switchTo(routes.length - 1); return;
   } else return;
   w.name = undefined; drawWizard(); $("wBody").scrollTop = 0;
@@ -538,7 +571,7 @@ document.addEventListener("click", e => {
   else if (t.id === "addBtn") openWizard();
   else if (t.dataset.tab !== undefined) { $("routesDlg").close(); switchTo(+t.dataset.tab); }
   else if (t.id === "editBtn") openEdit();
-  else if (t.id === "eDelete") { if (confirm(`Delete “${route().name}”?`)) { routes.splice(current, 1); $("editDlg").close(); switchTo(0); } }
+  else if (t.id === "eDelete") { if (!route().builtin && confirm(`Delete “${route().name}”?`)) { routes.splice(current, 1); $("editDlg").close(); switchTo(0); } }
   else if (t.id === "watchBtn") setWatching(!watching);
   else if (t.id === "stopAlarm") stopAlarm();
   else if (t.dataset.close !== undefined) t.closest("dialog").close();
