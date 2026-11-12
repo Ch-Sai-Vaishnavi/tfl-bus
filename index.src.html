@@ -266,6 +266,20 @@ async function rideTimes(r) {   // TfL scheduled minutes from the boarding stop 
   return (rideCache[key] = m);
 }
 
+let planCache = { key:"", at:0, trips:[] };
+async function plannerTrips(r) {   // TfL Journey Planner, refreshed at most once a minute
+  const key = `${r.line}|${r.boardId}|${r.alightId}`;
+  if (planCache.key === key && Date.now() - planCache.at < MIN) return planCache.trips.map(t => ({ ...t }));
+  try {
+    const d = await getJSON(`/Journey/JourneyResults/${r.boardId}/to/${r.alightId}?mode=bus&journeyPreference=leastinterchange`);
+    const trips = (d.journeys || []).map(j => j.legs.filter(l => l.mode?.id === "bus"))
+      .filter(legs => legs.length === 1 && legs[0].routeOptions?.some(o => o.name?.toLowerCase() === r.line))
+      .map(([l]) => ({ dep: new Date(l.departureTime).getTime(), arr: new Date(l.arrivalTime).getTime() }));
+    planCache = { key, at: Date.now(), trips };
+  } catch {}
+  return planCache.key === key ? planCache.trips.map(t => ({ ...t })) : [];
+}
+
 // ---------- live data ----------
 let openNotice = false;
 let live = [], status = null, disruptions = [], err = "", fetched = 0, loading = true, seq = null, lineGone = false;
@@ -286,8 +300,17 @@ async function refresh() {
     });
     // TfL only predicts ~30 min ahead per bus. If the getting-off stop isn't covered yet, estimate it:
     // last live prediction for this bus + TfL's scheduled ride time from there to the stop.
+    // 2nd choice: TfL Journey Planner (the official planner behind TfL's route search) — departure adjusted live,
+    // arrival from TfL's time-of-day running times. Matched to each live bus by departure time.
+    const plan = r.alightId ? await plannerTrips(r) : [];
+    for (const b of live) {
+      if (b.off) continue;
+      const m = plan.filter(j => !j.used && Math.abs(j.dep - b.at) <= 4 * MIN).sort((x, y) => Math.abs(x.dep - b.at) - Math.abs(y.dep - b.at))[0];
+      if (m) { m.used = true; b.off = m.arr + (b.at - m.dep); b.offEst = true; }
+    }
+    // 3rd choice (only if the planner had nothing): TfL's scheduled ride time from the last live point.
     let ride = {};
-    try { if (r.alightId) ride = await rideTimes(r); } catch {}
+    try { if (r.alightId && live.some(b => !b.off)) ride = await rideTimes(r); } catch {}
     if (ride[r.alightId] != null) for (const b of live) {
       if (b.off) continue;
       const last = [...b.preds].reverse().find(p => p.t >= b.at && ride[p.id] != null && ride[p.id] <= ride[r.alightId]);
@@ -380,7 +403,7 @@ function renderList() {
   h += `</div>`;
   $("list").innerHTML = h;
   const good = status === "Good Service";
-  $("foot").innerHTML = `${good ? `<span style="color:var(--green)">●</span> Good service on the ${esc(r.line.toUpperCase())} · ` : ""}Live TfL data${live.some(b => b.offEst) ? " · ≈ arrival estimated from TfL's timetable" : ""}${fetched ? ` · updated ${Math.round((now - fetched) / 1000)}s ago` : ""}`;
+  $("foot").innerHTML = `${good ? `<span style="color:var(--green)">●</span> Good service on the ${esc(r.line.toUpperCase())} · ` : ""}Live TfL data${live.some(b => b.offEst) ? " · ≈ arrival from TfL Journey Planner until the live time is published" : ""}${fetched ? ` · updated ${Math.round((now - fetched) / 1000)}s ago` : ""}`;
 }
 
 // ---------- in-app alarm ----------
