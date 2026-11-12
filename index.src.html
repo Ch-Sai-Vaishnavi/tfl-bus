@@ -55,6 +55,8 @@
   .facts { display:grid; grid-template-columns:repeat(3, 1fr); margin-top:18px; border-top:1px solid var(--line); padding-top:14px; }
   .fact .k { font-size:12px; color:var(--dim); } .fact .v { font-size:17px; font-weight:600; margin-top:1px; }
   .hero-btn { width:100%; margin-top:16px; padding:13px; border-radius:14px; background:var(--fill); color:var(--blue); font-weight:600; font-size:15px; }
+  .gapwarn { margin-top:14px; padding:10px 12px; border-radius:12px; font-size:14px; font-weight:600; color:var(--amber);
+             background:color-mix(in srgb, var(--amber) 14%, transparent); }
   .hero.empty { text-align:center; padding:30px 24px; }
   .hero.empty .t { font-size:18px; font-weight:600; } .hero.empty .s { font-size:14px; color:var(--dim); margin-top:6px; }
 
@@ -80,7 +82,8 @@
   .mins i { font-style:normal; font-size:11px; color:var(--dim); font-weight:600; text-transform:uppercase; letter-spacing:.05em; }
   .bus .mid { flex:1; min-width:0; }
   .bus .t { font-weight:600; } .bus .s { font-size:13px; color:var(--dim); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .state { flex:none; font-size:12px; font-weight:700; padding:6px 10px; border-radius:999px; }
+  .state { flex:none; font-size:12px; font-weight:700; padding:6px 10px; border-radius:999px; text-align:center; line-height:1.25; }
+  .state em { display:block; font-style:normal; font-size:11px; font-weight:600; color:var(--txt); opacity:.62; }
   .ok .state { color:var(--green); background:color-mix(in srgb, var(--green) 14%, transparent); }
   .ready .state { color:var(--amber); background:color-mix(in srgb, var(--amber) 16%, transparent); }
   .now .state { color:#fff; background:var(--red); }
@@ -370,6 +373,8 @@ function renderHero() {
       <div class="fact"><div class="k">Bus at stop</div><div class="v num">${hm(next.at)}</div></div>
       <div class="fact"><div class="k">${r.alightName ? "You arrive" : "Stops away"}</div><div class="v num">${r.alightName ? (next.off ? `${next.offEst ? "≈" : ""}${hm(next.off)}` : "—") : (stopsAway(next, now) ?? "—")}</div></div>
     </div>
+    ${(() => { const after = live.find(b => b.at > next.at), gap = after ? Math.round((after.at - next.at) / MIN) : 0;
+       return gap >= 15 ? `<div class="gapwarn">⚠︎ Next bus is ${gap} min later — don't miss this one</div>` : ""; })()}
     ${s.leaveIn > 0 ? `<button class="hero-btn" data-alarm="${s.leaveAt}" data-bus="${hm(next.at)}">⏰ Phone alarm for ${hm(s.leaveAt)}</button>` : ""}
   </div>`;
 }
@@ -393,7 +398,8 @@ function renderList() {
   else if (!buses.length) h += `<div class="list-empty">${loading ? "Loading…" : `No ${esc(r.line.toUpperCase())} buses tracked in the next ~30 minutes.`}</div>`;
   for (const b of buses) {
     const s = stateOf(r, b.at, now), away = stopsAway(b, now), near = nearName(b, now);
-    const state = s.cls === "late" ? "Missed" : s.cls === "now" ? "Leave now" : `Leave ${hm(s.leaveAt)}`;
+    const state = s.cls === "late" ? "Missed" : s.cls === "now" ? "Leave now"
+      : `Leave ${hm(s.leaveAt)}<em class="num">in ${Math.floor(s.leaveIn)} min</em>`;
     h += `<div class="bus ${s.cls}">
       <div class="mins num"><b>${s.eta < 1 ? "Due" : Math.floor(s.eta)}</b><i>${s.eta < 1 ? "" : "min"}</i></div>
       <div class="mid"><div class="t num">${hm(b.at)}${b.off ? ` <span style="color:var(--dim);font-weight:500">→ ${b.offEst ? "≈" : ""}${hm(b.off)}</span>` : ""}</div>
@@ -453,7 +459,8 @@ function openRoutes() {
     <button class="pick" data-tab="${i}"><div class="badge">${esc(r.line.toUpperCase())}</div>
       <div class="tx"><div class="t">${esc(r.name)}</div><div class="s">${esc(r.boardStop)} · Stop ${esc(r.boardLetter)}${r.alightName ? ` → ${esc(r.alightName)}${r.alightLetter ? ` · ${esc(r.alightLetter)}` : ""}` : ""}</div></div>
       ${i === current ? `<span class="ck">✓</span>` : ""}</button>`).join("") || `<div class="list-empty">No routes yet</div>`}</div>
-    <button class="primary" id="addBtn">＋ Add a route</button>`;
+    <button class="primary" id="addBtn">＋ Add a route</button>
+    <a class="ghost" href="explore.html" style="display:block;text-align:center;text-decoration:none">🧪 Bus-only alternatives (experimental)</a>`;
   $("routesDlg").showModal();
 }
 
@@ -620,15 +627,20 @@ function km(a, b, c, d) {
   return 12742 * Math.asin(Math.sqrt(h));
 }
 let pickedManually = false;
+function pickByTime() {   // backup only: location off/denied/unavailable -> mornings "to work", afternoons/evenings "home"
+  if (pickedManually) return;
+  const i = routes.findIndex(r => r.id === (new Date().getHours() < 12 ? "135-to-work" : "135-home"));
+  if (i >= 0 && i !== current) switchTo(i);
+}
 function pickByLocation() {
-  if (!navigator.geolocation) return;
+  if (!navigator.geolocation) return pickByTime();
   navigator.geolocation.getCurrentPosition(pos => {
     if (pickedManually) return;   // you already chose a route yourself
     const { latitude:la, longitude:lo } = pos.coords;
     const near = PLACES.map(p => ({ ...p, d: km(la, lo, p.lat, p.lon) })).filter(p => p.d <= NEAR_KM).sort((a, b) => a.d - b.d)[0];
     const i = near ? routes.findIndex(r => r.id === near.route) : -1;
     if (i >= 0 && i !== current) switchTo(i);
-  }, () => {}, { enableHighAccuracy:false, timeout:10000, maximumAge:5 * MIN });
+  }, pickByTime, { enableHighAccuracy:false, timeout:10000, maximumAge:5 * MIN });
 }
 
 renderAll(); refresh(); busLines(); pickByLocation();

@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f4f4f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0a0a0b" media="(prefers-color-scheme: dark)">
+<title>Bus · Alternatives</title>
+<link rel="apple-touch-icon" href="apple-touch-icon-180.png">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root { --bg:#f4f4f6; --card:#fff; --txt:#111113; --dim:#6b6b73; --faint:#a1a1aa; --line:#ececf0; --fill:#f1f1f4;
+          --red:#ff3b30; --amber:#ff9500; --green:#28c76f; --blue:#0a84ff; --brand:#e1251b;
+          --shadow:0 1px 1px rgba(16,16,24,.03), 0 8px 24px rgba(16,16,24,.06); --r:22px; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#0a0a0b; --card:#17171a; --txt:#f4f4f5; --dim:#9a9aa3; --faint:#5c5c66; --line:#26262b; --fill:#222227; --shadow:0 0 0 1px rgba(255,255,255,.04); }
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { background:var(--bg); }
+  body { margin:0; color:var(--txt); font:16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
+  button { font:inherit; color:inherit; cursor:pointer; border:0; background:none; padding:0; }
+  a { color:var(--blue); text-decoration:none; }
+  .num { font-variant-numeric:tabular-nums; }
+  .app { max-width:460px; margin:0 auto; padding:calc(env(safe-area-inset-top) + 14px) 18px calc(env(safe-area-inset-bottom) + 36px); }
+  .back { font-size:16px; display:inline-block; padding:6px 0; }
+  .tag { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:var(--amber);
+         background:color-mix(in srgb, var(--amber) 15%, transparent); padding:3px 8px; border-radius:6px; }
+  h1 { font-size:28px; letter-spacing:-.025em; margin:8px 0 4px; }
+  .sub { color:var(--dim); font-size:14px; margin:0 0 14px; }
+  .chips { display:flex; gap:8px; overflow-x:auto; margin:0 -18px 16px; padding:0 18px; scrollbar-width:none; }
+  .chips::-webkit-scrollbar { display:none; }
+  .chip { flex:none; padding:8px 14px; border-radius:999px; background:var(--card); box-shadow:var(--shadow); font-size:14px; font-weight:600; }
+  .chip.on { background:var(--txt); color:var(--bg); }
+  .card { background:var(--card); border-radius:var(--r); box-shadow:var(--shadow); margin-bottom:12px; padding:16px 18px; }
+  .opt-top { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .legs { display:flex; align-items:center; flex-wrap:wrap; gap:6px; }
+  .badge { height:26px; min-width:40px; padding:0 8px; border-radius:7px; background:var(--brand); color:#fff; font-weight:700; font-size:14px; display:grid; place-items:center; }
+  .walk { font-size:13px; color:var(--dim); }
+  .arr { text-align:right; } .arr b { font-size:24px; letter-spacing:-.02em; display:block; line-height:1.1; } .arr span { font-size:12px; color:var(--dim); }
+  .best { font-size:11px; font-weight:700; color:var(--green); text-transform:uppercase; letter-spacing:.05em; margin-bottom:8px; }
+  .leave { margin-top:10px; font-size:14px; font-weight:600; }
+  .leave em { font-style:normal; color:var(--dim); font-weight:500; }
+  .steps { margin:12px 0 0; padding:12px 0 0; border-top:1px solid var(--line); list-style:none; }
+  .steps li { font-size:13px; color:var(--dim); margin:5px 0; } .steps li b { color:var(--txt); font-weight:600; }
+  .pending .arr b { color:var(--faint); }
+  .pending .arr b { font-size:15px; }
+  .empty { text-align:center; color:var(--dim); padding:28px 18px; }
+  .foot { text-align:center; font-size:12px; color:var(--faint); margin-top:16px; line-height:1.6; }
+  .err { color:var(--red); }
+</style>
+</head>
+<body>
+<main class="app">
+  <a class="back" href="./">‹ Back</a>
+  <div><span class="tag">Experimental</span></div>
+  <h1>Bus-only alternatives</h1>
+  <p class="sub">Other ways to get there by bus, with at most a 5-minute walk between buses. Every time shown is a live TfL prediction. TfL publishes these about 30 minutes ahead, so later parts of a trip fill in as the bus gets closer.</p>
+  <div class="chips" id="chips"></div>
+  <div id="out"><div class="card empty">Finding live options…</div></div>
+  <div class="foot" id="foot"></div>
+</main>
+
+<script>
+"use strict";
+const API = "https://api.tfl.gov.uk";
+const MIN = 60000;
+const WALK_M_PER_MIN = 75;        // ~4.5 km/h
+const MAX_CHANGE_M = 400;         // max walk between two buses (~5 min)
+const DEST_RADIUS_M = 400;        // also allow getting off at stops this close to your stop
+const CHANGE_BUFFER_MIN = 1;      // extra time to make a change
+const REFRESH_MS = 60000;
+const MAX_OPTIONS = 8;
+// Same built-in routes as the main page (used only if the main page hasn't saved any yet).
+const BUILTIN = [
+  { id:"135-to-work", name:"135 to work", line:"135", boardId:"490016668K", boardStop:"Canary Wharf Station", boardLetter:"K",
+    alightId:"490005524E", alightName:"Commercial Street / Worship Street", alightLetter:"E", walk:15 },
+  { id:"135-home", name:"135 home", line:"135", boardId:"490005524D", boardStop:"Commercial Street / Worship Street", boardLetter:"D",
+    alightId:"490016668L", alightName:"Canary Wharf Station", alightLetter:"L", walk:7 },
+];
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hm = t => new Date(t).toLocaleTimeString("en-GB", { hour:"2-digit", minute:"2-digit" });
+const today = new Date().toDateString();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function getJSON(p, attempt = 0) {   // if TfL says "too many requests", wait and retry (5s, 10s, 20s)
+  const r = await fetch(API + p);
+  if (r.status === 429 && attempt < 3) { await sleep(5000 * 2 ** attempt); return getJSON(p, attempt + 1); }
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+async function pool(items, n, fn) {   // run fn over items, n at a time
+  const out = []; let i = 0;
+  await Promise.all(Array.from({ length:n }, async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k]).catch(() => null); } }));
+  return out;
+}
+function metres(a, b) {
+  const r = x => x * Math.PI / 180, h = Math.sin(r(b[0] - a[0]) / 2) ** 2 + Math.cos(r(a[0])) * Math.cos(r(b[0])) * Math.sin(r(b[1] - a[1]) / 2) ** 2;
+  return 12742000 * Math.asin(Math.sqrt(h));
+}
+const walkMin = m => Math.ceil(m / WALK_M_PER_MIN);
+
+// Routes: read the main page's saved routes (read-only), else the built-ins.
+const saved = JSON.parse(localStorage.getItem("routes") || "null");
+const routes = (saved?.length ? saved : BUILTIN).filter(r => r.boardId && r.alightId);
+let current = Math.min(+localStorage.getItem("current") || 0, routes.length - 1);
+
+// ---------- reference data: stop order of each bus route (TfL route maps, cached per day) ----------
+for (const k of Object.keys(localStorage)) if (k.startsWith("xseq|") && !k.endsWith(today)) localStorage.removeItem(k);
+async function sequence(line, dir) {
+  const key = `xseq|${line}|${dir}|${today}`;
+  const c = localStorage.getItem(key); if (c) return JSON.parse(c);
+  const d = await getJSON(`/Line/${encodeURIComponent(line)}/Route/Sequence/${dir}`);
+  const stops = {};
+  for (const sp of d.stopPointSequences || []) for (const s of sp.stopPoint) stops[s.id] = [s.lat, s.lon, s.name, s.stopLetter || ""];
+  const orders = (d.orderedLineRoutes || []).map(o => o.naptanIds.filter(id => stops[id])).filter(o => o.length > 1);
+  const v = { orders, stops };
+  try { localStorage.setItem(key, JSON.stringify(v)); } catch {}
+  return v;
+}
+const stopCache = {};
+async function stopInfo(id) {   // lat/lon/name/letter of one stop
+  if (stopCache[id]) return stopCache[id];
+  const d = await getJSON(`/StopPoint/${id}`);
+  let hit = null;
+  (function walk(n) { if (n.naptanId === id) hit = n; (n.children || []).forEach(walk); })(d);
+  return (stopCache[id] = { lat:hit.lat, lon:hit.lon, name:hit.commonName, letter:hit.stopLetter || "" });
+}
+
+// ---------- find candidate journeys (which buses connect) ----------
+async function candidates(r, linesA) {
+  const alight = await stopInfo(r.alightId);
+  const near = (await getJSON(`/StopPoint/?lat=${alight.lat}&lon=${alight.lon}&stopTypes=NaptanPublicBusCoachTram&radius=${DEST_RADIUS_M}&modes=bus`)).stopPoints || [];
+  const dest = {};   // stops you could get off at -> walk to your stop
+  for (const s of near) if (s.lines?.length) dest[s.naptanId] = { name:s.commonName, letter:s.stopLetter || s.indicator || "", walkM: metres([s.lat, s.lon], [alight.lat, alight.lon]) };
+  dest[r.alightId] = { name:alight.name, letter:alight.letter, walkM:0 };
+  const h = new Date().getHours(), day = h >= 6 && h < 24;
+  const isNight = l => /^n\d/.test(l);
+  const linesB = [...new Set(near.flatMap(s => (s.lines || []).map(l => l.id)))].filter(l => !(day && isNight(l)));
+
+  const jobs = [];
+  for (const [l, dir] of Object.entries(linesA)) jobs.push([l, dir]);
+  for (const l of linesB) for (const dir of ["outbound", "inbound"]) if (linesA[l] !== dir) jobs.push([l, dir]);
+  const seqs = {};
+  (await pool(jobs, 1, ([l, d]) => sequence(l, d).then(s => [l, d, s]))).filter(Boolean).forEach(([l, d, s]) => { (seqs[l] ||= {})[d] = s; });
+
+  const opts = [];
+  const servesDest = {}, servesOrigin = new Set(Object.keys(linesA));
+  for (const [A, dirA] of Object.entries(linesA))
+    for (const oa of seqs[A]?.[dirA]?.orders || []) { const i = oa.indexOf(r.boardId); if (i >= 0 && oa.slice(i + 1).some(d => dest[d])) servesDest[A] = true; }
+  for (const [A, dirA] of Object.entries(linesA)) {
+    if (day && isNight(A)) continue;
+    const sa = seqs[A]?.[dirA]; if (!sa) continue;
+    for (const oa of sa.orders) {
+      const i = oa.indexOf(r.boardId); if (i < 0) continue;
+      const after = oa.slice(i + 1);
+      // direct
+      after.forEach((d, k) => { if (dest[d]) opts.push({ legs:[{ line:A, from:r.boardId, to:d }], dest:d, score:k + 1 + dest[d].walkM / WALK_M_PER_MIN }); });
+      // one change
+      for (const B of linesB) {
+        // skip pointless changes: first bus already goes there, or second bus also stops at your stop
+        if (B === A || servesDest[A] || servesOrigin.has(B)) continue;
+        for (const sb of Object.values(seqs[B] || {})) for (const ob of sb.orders) ob.forEach((d, j) => {
+          if (!dest[d] || j === 0) return;
+          const before = ob.slice(0, j);
+          let best = null;
+          after.forEach((a, ka) => {
+            const pa = sa.stops[a];
+            if (ka < 2) return;                                    // at least 3 stops on each bus
+            before.forEach((b, kb) => {
+              if (j - kb < 3) return;
+              const m = metres(pa, sb.stops[b]); if (m > MAX_CHANGE_M) return;
+              const score = (ka + 1) + (j - kb) + m / WALK_M_PER_MIN + CHANGE_BUFFER_MIN + dest[d].walkM / WALK_M_PER_MIN;
+              if (!best || score < best.score) best = { a, b, m, score };
+            });
+          });
+          if (best) opts.push({ legs:[{ line:A, from:r.boardId, to:best.a, names:sa.stops }, { line:B, from:best.b, to:d, names:sb.stops }],
+                                changeM:best.m, dest:d, score:best.score });
+        });
+      }
+    }
+  }
+  // keep the best per bus combination, then the most promising few
+  const byKey = {};
+  for (const o of opts) { const k = o.legs.map(l => l.line).join(">"); if (!byKey[k] || o.score < byKey[k].score) byKey[k] = o; }
+  return { list:Object.values(byKey).sort((a, b) => a.score - b.score).slice(0, MAX_OPTIONS), dest };
+}
+
+// ---------- live times for each candidate (TfL live predictions only) ----------
+async function evaluate(r, arrO, cands) {
+  const t0 = Date.now() + (r.walk || 0) * MIN;   // when you can be at your boarding stop
+  // leg 1: next live buses at your stop for each line
+  const firstBuses = {};
+  for (const a of arrO) if (a.at >= t0 - 30000) (firstBuses[a.line] ||= []).push(a);
+  const vehIds = new Set();
+  cands.forEach(c => { const a = (firstBuses[c.legs[0].line] || [])[0]; if (a) vehIds.add(a.veh); });
+  const preds = await vehiclePreds([...vehIds]);
+
+  // leg 2: live arrivals at each change stop
+  const changeStops = [...new Set(cands.filter(c => c.legs[1]).map(c => c.legs[1].from))];
+  const arrAt = {};
+  (await pool(changeStops, 2, id => getJSON(`/StopPoint/${id}/Arrivals`).then(x => [id, x]))).filter(Boolean)
+    .forEach(([id, x]) => { arrAt[id] = x.map(a => ({ line:a.lineId, veh:a.vehicleId, at:Date.parse(a.expectedArrival), stop:a.stationName })); });
+
+  const results = cands.map(c => {
+    const res = { c, steps:[], done:false };
+    const l1 = c.legs[0];
+    const bus1 = (firstBuses[l1.line] || [])[0];   // the first one you can catch
+    if (!bus1) { res.waiting = `No live ${l1.line.toUpperCase()} at your stop yet`; return res; }
+    res.board = bus1.at;
+    const t1 = preds[bus1.veh]?.[l1.to];
+    res.steps.push({ line:l1.line, at:bus1.at, to:l1.to, toT:t1, toName:c.legs[1] ? l1.names[l1.to] : null });
+    if (!t1) { res.waiting = "Live time for the rest of this trip isn't published yet"; return res; }
+    if (!c.legs[1]) { res.arrive = t1; res.done = true; return res; }
+    const l2 = c.legs[1], ready = t1 + (walkMin(c.changeM) + CHANGE_BUFFER_MIN) * MIN;
+    const cand2 = (arrAt[l2.from] || []).filter(a => a.line === l2.line && a.at >= ready).sort((a, b) => a.at - b.at);
+    res.change = { walk:walkMin(c.changeM), stop:l2.names[l2.from] };
+    if (!cand2.length) { res.waiting = `No live ${l2.line.toUpperCase()} at the change stop yet`; return res; }
+    res.steps.push({ line:l2.line, at:cand2[0].at, veh:cand2[0].veh, to:l2.to });
+    return res;
+  });
+  // leg-2 vehicles -> arrival at destination
+  const ids2 = [...new Set(results.flatMap(x => x.steps[1]?.veh ? [x.steps[1].veh] : []))];
+  const preds2 = await vehiclePreds(ids2);
+  for (const x of results) {
+    const s2 = x.steps[1]; if (!s2 || x.done || x.waiting) continue;
+    s2.toT = preds2[s2.veh]?.[s2.to];
+    if (s2.toT) { x.arrive = s2.toT; x.done = true; } else x.waiting = "Live time for the second bus isn't published yet";
+  }
+  return results;
+}
+async function vehiclePreds(ids) {   // vehicle -> { stopId: predicted time }
+  const out = {};
+  for (let i = 0; i < ids.length; i += 10) {
+    try {
+      for (const p of await getJSON(`/Vehicle/${ids.slice(i, i + 10).join(",")}/Arrivals`))
+        (out[p.vehicleId] ||= {})[p.naptanId] = Date.parse(p.expectedArrival);
+    } catch {}
+  }
+  return out;
+}
+
+// ---------- render ----------
+let lastRun = 0, running = false, cache = { key:"", cands:null };
+function renderChips() {
+  $("chips").innerHTML = routes.map((r, i) => `<button class="chip ${i === current ? "on" : ""}" data-i="${i}">${esc(r.name)}</button>`).join("");
+}
+async function run() {
+  if (running) return; running = true;
+  const r = routes[current];
+  try {
+    const arrO = (await getJSON(`/StopPoint/${r.boardId}/Arrivals`)).map(a => ({ line:a.lineId, veh:a.vehicleId, at:Date.parse(a.expectedArrival), dir:a.direction }));
+    const linesA = {}; arrO.forEach(a => { linesA[a.line] ||= a.dir; });
+    if (!Object.keys(linesA).length) { $("out").innerHTML = `<div class="card empty">No live buses at ${esc(r.boardStop)} right now.</div>`; return; }
+    const key = `${r.boardId}|${r.alightId}|${Object.keys(linesA).sort().join(",")}`;
+    if (cache.key !== key) cache = { key, ...(await candidates(r, linesA)) };
+    const res = await evaluate(r, arrO, cache.list);
+    draw(r, res, cache.dest);
+    lastRun = Date.now();
+  } catch (e) {
+    if (!$("out").querySelector(".opt-top")) $("out").innerHTML = `<div class="card empty err">TfL is busy or unreachable — trying again in a minute…</div>`;
+  } finally { running = false; }
+}
+function draw(r, res, dest) {
+  const done = res.filter(x => x.done).sort((a, b) => (a.arrive + (dest[a.c.dest].walkM / WALK_M_PER_MIN) * MIN) - (b.arrive + (dest[b.c.dest].walkM / WALK_M_PER_MIN) * MIN));
+  const wait = res.filter(x => !x.done && x.board).sort((a, b) => a.board - b.board);
+  const atYourStop = x => x.arrive + walkMin(dest[x.c.dest].walkM) * MIN;
+  const card = (x, best) => {
+    const c = x.c, d = dest[c.dest], legs = c.legs;
+    const chain = legs.map((l, i) => `${i ? `<span class="walk">› ${x.change?.walk ? `🚶 ${x.change.walk} min ›` : ""}</span>` : ""}<span class="badge">${esc(l.line.toUpperCase())}</span>`).join("");
+    const leaveAt = x.board - (r.walk || 0) * MIN, leaveIn = Math.floor((leaveAt - Date.now()) / MIN);
+    const nm = st => st ? `${esc(st[2])}${st[3] ? ` (${esc(st[3])})` : ""}` : "";
+    const later = `<em>live time not published yet</em>`;
+    const steps = [`<li>Board <b>${esc(legs[0].line.toUpperCase())}</b> at ${esc(r.boardStop)}${r.boardLetter ? ` (${esc(r.boardLetter)})` : ""} — <b>${hm(x.board)}</b></li>`];
+    if (legs[1]) {
+      steps.push(`<li>Get off at <b>${nm(legs[0].names[legs[0].to])}</b> — ${x.steps[0]?.toT ? hm(x.steps[0].toT) : later}</li>`);
+      steps.push(`<li>Walk ${walkMin(c.changeM)} min to <b>${nm(legs[1].names[legs[1].from])}</b></li>`);
+      steps.push(`<li>Board <b>${esc(legs[1].line.toUpperCase())}</b> — ${x.steps[1] ? `<b>${hm(x.steps[1].at)}</b>` : later}</li>`);
+    }
+    steps.push(`<li>Get off at <b>${esc(d.name)}${d.letter ? ` (${esc(d.letter)})` : ""}</b> — ${x.done ? hm(x.arrive) : later}${d.walkM ? `, then walk ${walkMin(d.walkM)} min to your stop` : ""}</li>`);
+    return `<div class="card ${x.done ? "" : "pending"}">
+      ${best ? `<div class="best">Fastest right now</div>` : ""}
+      <div class="opt-top"><div class="legs">${chain}</div>
+        <div class="arr num">${x.done ? `<b>${hm(atYourStop(x))}</b><span>arrive${d.walkM ? " (incl. walk)" : ""}</span>` : `<b>—</b><span>arrival not live yet</span>`}</div></div>
+      <div class="leave num">${leaveIn <= 0 ? "Leave now" : `Leave by ${hm(leaveAt)}`} <em>${leaveIn > 0 ? `· in ${leaveIn} min` : ""}</em></div>
+      <ul class="steps">${steps.join("")}</ul>
+    </div>`;
+  };
+  $("out").innerHTML = (done.map((x, i) => card(x, i === 0)).join("") + wait.map(x => card(x, false)).join(""))
+    || `<div class="card empty">No bus-only options with live times right now.</div>`;
+}
+function foot() {
+  $("foot").textContent = `Live TfL predictions only · ${routes[current].walk || 0} min walk to your first stop included · changes ≤ ${Math.round(MAX_CHANGE_M / WALK_M_PER_MIN)} min walk`
+    + (lastRun ? ` · updated ${Math.round((Date.now() - lastRun) / 1000)}s ago` : "");
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-i]"); if (!b) return;
+  current = +b.dataset.i; renderChips(); cache = { key:"" };
+  $("out").innerHTML = `<div class="card empty">Finding live options…</div>`; run();
+});
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") run(); });
+renderChips(); run();
+setInterval(run, REFRESH_MS);
+setInterval(foot, 1000);
+</script>
+</body>
+</html>
